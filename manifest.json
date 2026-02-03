@@ -1,0 +1,40 @@
+{
+  "name": "聊天式记事本",
+  "short_name": "记事本",
+  "description": "移动版聊天式记事本应用",
+  "start_url": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay"],
+  "theme_color": "#3498db",
+  "background_color": "#f8f9fa",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "新建消息",
+      "short_name": "新建",
+      "description": "快速新建一条消息",
+      "url": "/?new=true"
+    },
+    {
+      "name": "查看待办",
+      "short_name": "待办",
+      "description": "查看待办事项",
+      "url": "/?todo=true"
+    }
+  ]
+}
