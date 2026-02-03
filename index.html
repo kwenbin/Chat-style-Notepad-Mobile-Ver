@@ -4188,16 +4188,16 @@ function generateHelpReply() {
     const helpMessage = {
         id: Date.now() + 1,
         username: state.assistantName,
-        content: '📖 点击下方链接查看完整帮助文档：\n\n' +
+        content: '📖 点击下方链接查看完整帮助文档：\n' +
                 '<div style="text-align: center; margin: 15px 0;">' +
                 '<a href="help.html" style="color: white; text-decoration: none; display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); border-radius: 25px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3); transition: all 0.2s ease; cursor: pointer;" onclick="window.location.href=\'help.html\'">' +
                 '<i class="fas fa-book" style="margin-right: 8px;"></i>打开帮助文档</a>' +
-                '</div>\n\n' +
+                '</div>' +
                 '帮助文档包含：\n' +
                 '• 使用教程\n' +
                 '• 功能说明\n' +
                 '• 常见问题\n' +
-                '• 使用技巧\n\n' +
+                '• 使用技巧\n' +
                 '<div style="font-size: 14px; color: #7f8c8d; margin-top: 10px;">' +
                 '<i class="fas fa-info-circle" style="color: #3498db; margin-right: 5px;"></i>点击后将在当前页面跳转到帮助文档' +
                 '</div>',
