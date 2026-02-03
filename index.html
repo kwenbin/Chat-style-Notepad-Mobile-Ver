@@ -1,0 +1,4736 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>聊天式记事本 - 移动版</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background-color: #f8f9fa;
+            color: #2c3e50;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* 顶部导航栏 */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background-color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            border-bottom: 1px solid #eaeaea;
+            z-index: 100;
+        }
+
+        .nav-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            background: none;
+            font-size: 24px;
+            color: #2c3e50;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            background-color: #f8f9fa;
+        }
+
+        .nav-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 60%;
+        }
+
+        /* 聊天内容区域 */
+        .chat-container {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow-y: auto;
+            padding: 16px;
+            padding-bottom: 160px; /* 为输入区域留出空间 */
+        }
+
+        /* 时间分隔线 */
+        .time-divider {
+            text-align: center;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .time-divider::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            height: 1px;
+            background-color: #eaeaea;
+            z-index: 1;
+        }
+
+        .time-text {
+            display: inline-block;
+            padding: 6px 12px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #95a5a6;
+            position: relative;
+            z-index: 2;
+            border: 1px solid #eaeaea;
+        }
+
+        /* 消息气泡 - 修改：确保自己的气泡靠右 */
+        .message {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            max-width: 100%;
+        }
+
+        .message.self {
+            align-self: flex-end;
+            margin-left: auto;
+            margin-right: 0;
+            max-width: 100%;
+            width: fit-content;
+        }
+
+        .message.other {
+            align-self: flex-start;
+            margin-right: auto;
+            max-width: 100%;
+            width: fit-content;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 12px;
+            color: #7f8c8d;
+            width: 100%;
+        }
+
+        .message.self .message-header {
+            justify-content: flex-end;
+        }
+
+        .message.other .message-header {
+            justify-content: flex-start;
+        }
+
+        .username {
+            font-weight: 600;
+        }
+
+        .message-time {
+            opacity: 0.8;
+        }
+
+        .message.self .message-header .username {
+            margin-left: 8px;
+        }
+
+        .message.other .message-header .username {
+            margin-right: 8px;
+        }
+
+        /* 修改：所有气泡都有阴影效果 */
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 20px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            position: relative;
+            user-select: text;
+            cursor: pointer;
+            transition: transform 0.2s ease, background-color 0.3s ease;
+            /* 修改：气泡宽度自适应，但不超过屏幕宽度的85% */
+            min-width: 40px; /* 大约2个字符的宽度 */
+            max-width: 85vw; /* 最大为视口宽度的85% */
+            width: fit-content;
+            /* 字体大小将由JavaScript动态设置 */
+        }
+
+        .message.self .bubble {
+            background-color: #3498db;
+            color: #ffffff;
+            border-bottom-right-radius: 6px;
+        }
+
+        .message.other .bubble {
+            background-color: #ffffff;
+            color: #2c3e50;
+            border: 1px solid #eaeaea;
+            border-bottom-left-radius: 6px;
+        }
+
+        /* 待办气泡样式 - 修改：自己的消息不显示勾选框 */
+        .message.self .bubble.todo-pending::before,
+        .message.self .bubble.todo-completed::before {
+            display: none;
+        }
+
+        .message.other .bubble.todo-pending::before {
+            content: '☐';
+            margin-right: 8px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .message.other .bubble.todo-completed::before {
+            content: '☑';
+            margin-right: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            color: #27ae60;
+        }
+
+        .bubble.todo-completed {
+            color: #95a5a6 !important;
+            text-decoration: line-through;
+        }
+
+        .message.self .bubble.todo-completed {
+            background-color: #3498db;
+            opacity: 0.8;
+        }
+
+        .message.other .bubble.todo-completed {
+            background-color: #ffffff;
+            opacity: 0.8;
+        }
+
+        /* 重要气泡样式 */
+        .bubble.important {
+            border-left: 4px solid #e74c3c;
+        }
+
+        /* 抖动动画 */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+
+        .bubble.shake {
+            animation: shake 0.3s ease;
+        }
+
+        /* 输入区域 - 修改后 */
+        .input-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #ffffff;
+            border-top: 1px solid #eaeaea;
+            z-index: 100;
+            transition: transform 0.3s ease;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .input-container.keyboard-open {
+            transform: translateY(-50%);
+        }
+
+        .message-input-container {
+            position: relative;
+            border-top: 1px solid transparent;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 圆形加号按钮 - 修复位置，提高位置避免被输入框遮挡 */
+        .quick-actions {
+            position: fixed;
+            bottom: 120px; /* 提高位置，避免被输入框遮挡 */
+            right: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            z-index: 150;
+        }
+
+        .quick-main-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+            transition: all 0.3s ease;
+            z-index: 151;
+            position: fixed; /* 改为fixed定位 */
+            bottom: 120px; /* 提高位置 */
+            right: 16px;
+        }
+
+        .quick-main-btn:hover {
+            transform: rotate(90deg);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+
+        .quick-sub-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 10px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            position: fixed; /* 改为fixed定位 */
+            bottom: 180px; /* 提高位置 */
+            right: 16px;
+        }
+
+        .quick-sub-buttons.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+
+        .quick-sub-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .quick-sub-btn.todo {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        }
+
+        .quick-sub-btn.completed {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+        }
+
+        .quick-sub-btn.important {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+
+        .quick-sub-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .quick-sub-btn .badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: #e74c3c;
+            color: white;
+            font-size: 10px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .message-input {
+            width: 100%;
+            min-height: 40px;
+            max-height: 200px;
+            padding: 10px 16px;
+            border: none;
+            outline: none;
+            font-size: 16px;
+            line-height: 1.5;
+            resize: none;
+            font-family: inherit;
+            background-color: #ffffff;
+            overflow-y: auto;
+            transition: min-height 0.2s ease;
+        }
+
+        .message-input.focused {
+            min-height: 60px;
+        }
+
+        .message-input::placeholder {
+            color: #95a5a6;
+        }
+
+        .input-toolbar {
+            height: 44px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: none;
+        }
+
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .format-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background-color: #ecf0f1;
+            color: #3498db;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .format-btn:hover {
+            background-color: #e0e6e8;
+        }
+
+        .format-btn.active {
+            background-color: #2c3e50;
+            color: #ffffff;
+        }
+
+        .tag-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .tag-btn.important {
+            background-color: #e74c3c;
+            color: #ffffff;
+        }
+
+        .tag-btn.important:hover {
+            background-color: #c0392b;
+        }
+
+        .tag-btn.todo {
+            background-color: #2ecc71;
+            color: #ffffff;
+        }
+
+        .tag-btn.todo:hover {
+            background-color: #27ae60;
+        }
+
+        .send-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: #ffffff;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            margin-left: 8px;
+        }
+
+        .send-btn:hover {
+            background: linear-gradient(135deg, #2980b9 0%, #2573a7 100%);
+            transform: translateY(-1px);
+        }
+
+        .send-btn.show {
+            display: flex;
+            animation: slideInRight 0.3s ease;
+        }
+
+        /* 气泡菜单 - 修改：增加标记完成/重新待办选项 */
+        .bubble-menu {
+            position: fixed;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 8px;
+            display: none;
+            flex-direction: column;
+            min-width: 160px;
+            border: 1px solid #eaeaea;
+        }
+
+        .bubble-menu.show {
+            display: flex;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .bubble-menu-item {
+            padding: 12px 16px;
+            border: none;
+            background: none;
+            text-align: left;
+            font-size: 15px;
+            color: #2c3e50;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+
+        .bubble-menu-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .bubble-menu-item.important.active {
+            color: #e74c3c;
+        }
+
+        .bubble-menu-item.todo.active {
+            color: #2ecc71;
+        }
+
+        .bubble-menu-item.complete {
+            color: #27ae60;
+        }
+
+        .bubble-menu-item.reopen {
+            color: #f39c12;
+        }
+
+        .bubble-menu-item.delete {
+            color: #e74c3c;
+            border-top: 1px solid #f1f1f1;
+            margin-top: 4px;
+            padding-top: 16px;
+        }
+
+        .bubble-menu-item.delete:hover {
+            background-color: #fee;
+        }
+
+        /* 助手待办表格样式 */
+        .todo-table-container {
+            margin: 12px 0;
+            width: 100%;
+            max-width: 85vw;
+        }
+
+        .todo-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #eaeaea;
+        }
+
+        .todo-table th {
+            background-color: #f8f9fa;
+            padding: 8px 12px;
+            text-align: left;
+            font-size: 12px;
+            color: #7f8c8d;
+            font-weight: 600;
+            border-bottom: 1px solid #eaeaea;
+        }
+
+        .todo-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f1f1f1;
+            vertical-align: middle;
+        }
+
+        .todo-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .todo-date {
+            font-size: 12px;
+            color: #7f8c8d;
+            white-space: nowrap;
+        }
+
+        .todo-tag {
+            font-size: 12px;
+            font-weight: bold;
+            color: #2ecc71;
+        }
+
+        .todo-content {
+            font-size: 14px;
+            color: #2c3e50;
+            word-break: break-word;
+        }
+
+        .todo-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .todo-table tr.completed .todo-content {
+            text-decoration: line-through;
+            color: #95a5a6;
+        }
+
+        .save-todo-btn {
+            margin-top: 12px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+        }
+
+        .save-todo-btn:hover {
+            background: linear-gradient(135deg, #2980b9 0%, #2573a7 100%);
+            transform: translateY(-1px);
+        }
+
+        /* 发送方式选项样式 */
+        .dialog-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        .send-key-option {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px;
+            border: 2px solid #eaeaea;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .send-key-option:hover {
+            border-color: #3498db;
+            background-color: #f8f9fa;
+        }
+
+        .send-key-option.selected {
+            border-color: #3498db;
+            background-color: #f0f7ff;
+        }
+
+        .option-radio {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #bdc3c7;
+            margin-right: 12px;
+            margin-top: 2px;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .send-key-option.selected .option-radio {
+            border-color: #3498db;
+            background-color: #3498db;
+        }
+
+        .send-key-option.selected .option-radio::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: white;
+        }
+
+        .option-text-full {
+            flex: 1;
+        }
+
+        .option-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+
+        .option-desc {
+            font-size: 13px;
+            color: #7f8c8d;
+            line-height: 1.4;
+        }
+
+        /* 助手回复的待办列表样式（旧版，保留兼容） */
+        .todo-list-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            border: 1px solid #eaeaea;
+        }
+
+        .todo-list-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .todo-list-date {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-right: 8px;
+        }
+
+        .todo-list-checkbox {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .todo-list-content {
+            margin-left: 24px;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+
+        .todo-list-item.completed .todo-list-content {
+            text-decoration: line-through;
+            color: #95a5a6;
+        }
+
+        /* 侧滑菜单 - 标签管理 */
+        .side-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 85%;
+            max-width: 320px;
+            background-color: #2c3e50;
+            color: #ffffff;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .side-menu.open {
+            transform: translateX(0);
+            box-shadow: 5px 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            display: none;
+            cursor: pointer;
+        }
+
+        .menu-overlay.show {
+            display: block;
+        }
+
+        .menu-header {
+            padding: 20px 16px;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .menu-title {
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tabs-list {
+            padding: 16px;
+        }
+
+        .tab-item {
+            padding: 12px 16px;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.1);
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-item:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .tab-item.active {
+            background-color: rgba(52, 152, 219, 0.8) !important;
+            border-color: #3498db !important;
+        }
+
+        .tab-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .tab-name {
+            font-size: 16px;
+            font-weight: 600;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .tab-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 1;
+        }
+
+        .tab-action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .tab-action-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .tab-action-btn.pin {
+            color: #f39c12;
+        }
+
+        .tab-action-btn.pin.active {
+            background-color: rgba(243, 156, 18, 0.3);
+        }
+
+        .tab-action-btn.rename {
+            color: #3498db;
+        }
+
+        .tab-action-btn.delete {
+            color: #e74c3c;
+        }
+
+        .tab-preview {
+            font-size: 13px;
+            color: #ecf0f1;
+            opacity: 0.8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .menu-actions {
+            padding: 16px;
+            border-top: 1px solid #34495e;
+            margin-top: auto;
+        }
+
+        .new-tab-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .new-tab-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* 设置菜单 - 底部弹出 */
+        .settings-menu {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #ffffff;
+            border-radius: 16px 16px 0 0;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 1001;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .settings-menu.open {
+            transform: translateY(0);
+        }
+
+        .settings-header {
+            padding: 20px 16px;
+            border-bottom: 1px solid #eaeaea;
+            text-align: center;
+            position: relative;
+        }
+
+        .settings-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .close-settings {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            border: none;
+            background: none;
+            font-size: 24px;
+            color: #7f8c8d;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+
+        .close-settings:hover {
+            background-color: #f8f9fa;
+        }
+
+        .settings-options {
+            padding: 8px 0;
+        }
+
+        .settings-option {
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border-bottom: 1px solid #f8f9fa;
+        }
+
+        .settings-option:last-child {
+            border-bottom: none;
+        }
+
+        .settings-option:hover {
+            background-color: #f8f9fa;
+        }
+
+        .option-text {
+            font-size: 16px;
+            color: #2c3e50;
+            flex: 1;
+        }
+
+        .option-value {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-right: 8px;
+        }
+
+        .option-icon {
+            color: #7f8c8d;
+            font-size: 20px;
+        }
+
+        /* 用户名修改弹窗 */
+        .username-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            display: none;
+        }
+
+        .username-dialog.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .dialog-header {
+            margin-bottom: 20px;
+        }
+
+        .dialog-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .dialog-text {
+            font-size: 14px;
+            color: #7f8c8d;
+            line-height: 1.5;
+        }
+
+        .username-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #eaeaea;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 24px;
+            transition: border-color 0.2s ease;
+        }
+
+        .username-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .dialog-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .dialog-btn {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .dialog-btn.cancel {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+        }
+
+        .dialog-btn.cancel:hover {
+            background-color: #e0e6e8;
+        }
+
+        .dialog-btn.save {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: #ffffff;
+        }
+
+        .dialog-btn.save:hover {
+            background: linear-gradient(135deg, #2980b9 0%, #2573a7 100%);
+        }
+
+        /* 确认对话框 */
+        .confirm-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            display: none;
+        }
+
+        .confirm-dialog.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .confirm-message {
+            font-size: 16px;
+            color: #2c3e50;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        /* 重命名对话框 */
+        .rename-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            display: none;
+        }
+
+        .rename-dialog.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .rename-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #eaeaea;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 24px;
+            transition: border-color 0.2s ease;
+        }
+
+        .rename-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        /* 助手名称对话框 */
+        .assistant-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            display: none;
+        }
+
+        .assistant-dialog.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .assistant-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #eaeaea;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 24px;
+            transition: border-color 0.2s ease;
+        }
+
+        .assistant-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        /* 发送方式设置对话框 */
+        .send-key-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            display: none;
+        }
+
+        .send-key-dialog.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* 概率设置对话框 */
+        .probability-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            display: none;
+        }
+
+        .probability-dialog.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .probability-slider {
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .probability-value {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #3498db;
+            margin: 10px 0;
+        }
+
+        /* 字体大小设置对话框 */
+        .font-size-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            display: none;
+        }
+
+        .font-size-dialog.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .font-size-slider {
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .font-size-value {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #3498db;
+            margin: 10px 0;
+        }
+
+        /* 自动回复内容管理对话框 */
+        .reply-content-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 2000;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            display: none;
+            overflow-y: auto;
+        }
+
+        .reply-content-dialog.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .reply-list {
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .reply-item {
+            padding: 12px;
+            border: 1px solid #eaeaea;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #f8f9fa;
+        }
+
+        .reply-text {
+            flex: 1;
+            margin-right: 12px;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+
+        .reply-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .reply-action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            background-color: #ecf0f1;
+            color: #7f8c8d;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .reply-action-btn:hover {
+            background-color: #e0e6e8;
+        }
+
+        .reply-action-btn.delete {
+            color: #e74c3c;
+        }
+
+        .add-reply-container {
+            display: flex;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .add-reply-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #eaeaea;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+
+        .add-reply-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .add-reply-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s ease;
+        }
+
+        .add-reply-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+        }
+
+        /* 空状态 */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 60px;
+            color: #bdc3c7;
+            margin-bottom: 20px;
+        }
+
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .empty-text {
+            font-size: 14px;
+            color: #7f8c8d;
+            line-height: 1.5;
+        }
+
+        /* 动画 */
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 消息动画 */
+        .message {
+            opacity: 0;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #bdc3c7;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #95a5a6;
+        }
+
+        .chat-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        /* 键盘弹出时提高快速按钮位置 */
+        .input-container.keyboard-open ~ .quick-actions .quick-main-btn {
+            bottom: 180px;
+        }
+
+        .input-container.keyboard-open ~ .quick-actions .quick-sub-buttons {
+            bottom: 240px;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 320px) {
+            .format-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 12px;
+            }
+            
+            .tag-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            
+            .send-btn {
+                width: 36px;
+                height: 36px;
+            }
+            
+            .quick-main-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 20px;
+            }
+            
+            .quick-sub-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
+            
+            .todo-table th,
+            .todo-table td {
+                padding: 8px;
+                font-size: 12px;
+            }
+            
+            .todo-table {
+                font-size: 12px;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .message {
+                max-width: 75%;
+            }
+            
+            .side-menu {
+                width: 70%;
+                max-width: 400px;
+            }
+            
+            .todo-table-container {
+                max-width: 600px;
+            }
+        }
+
+        /* 安全区域适配（全面屏手机） */
+        @supports (padding-top: env(safe-area-inset-top)) {
+            .top-bar {
+                padding-top: env(safe-area-inset-top);
+                height: calc(56px + env(safe-area-inset-top));
+            }
+            
+            .chat-container {
+                top: calc(56px + env(safe-area-inset-top));
+            }
+            
+            .side-menu {
+                padding-top: env(safe-area-inset-top);
+            }
+            
+            .settings-menu {
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+            
+            .quick-main-btn {
+                bottom: calc(120px + env(safe-area-inset-bottom));
+            }
+            
+            .quick-sub-buttons {
+                bottom: calc(180px + env(safe-area-inset-bottom));
+            }
+            
+            .input-container.keyboard-open ~ .quick-actions .quick-main-btn {
+                bottom: calc(180px + env(safe-area-inset-bottom));
+            }
+            
+            .input-container.keyboard-open ~ .quick-actions .quick-sub-buttons {
+                bottom: calc(240px + env(safe-area-inset-bottom));
+            }
+        }
+/* 导出对话框样式 */
+.export-option {
+    padding: 12px;
+    border: 2px solid #eaeaea;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.export-option:hover {
+    border-color: #3498db;
+    background-color: #f8f9fa;
+}
+
+.export-option input[type="radio"]:checked ~ label {
+    color: #3498db;
+}
+
+.export-option input[type="radio"]:checked {
+    accent-color: #3498db;
+}
+
+.progress-container {
+    animation: fadeIn 0.3s ease;
+}
+
+/* 储存空间管理对话框样式 */
+.storage-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    z-index: 2000;
+    padding: 24px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    display: none;
+    overflow-y: auto;
+}
+
+.storage-dialog.show {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+.storage-summary {
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    border: 1px solid #eaeaea;
+}
+
+.storage-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.storage-item:last-child {
+    margin-bottom: 0;
+}
+
+.storage-label {
+    color: #7f8c8d;
+}
+
+.storage-value {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.time-range-selector {
+    margin: 20px 0;
+    padding: 16px;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+}
+
+.date-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 12px 0;
+}
+
+.date-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.date-input-group label {
+    font-size: 14px;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+.date-input {
+    padding: 10px;
+    border: 2px solid #eaeaea;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+}
+
+.date-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.quick-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.time-range-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: 2px solid #eaeaea;
+    background-color: #ffffff;
+    color: #2c3e50;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    min-width: 80px;
+}
+
+.time-range-btn:hover {
+    border-color: #3498db;
+    background-color: #f8f9fa;
+}
+
+.time-range-btn.active {
+    border-color: #3498db;
+    background-color: #f0f7ff;
+    color: #3498db;
+    font-weight: 600;
+}
+
+.preview-section {
+    margin: 20px 0;
+    padding: 16px;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.preview-list {
+    max-height: 150px;
+    overflow-y: auto;
+    margin: 12px 0;
+}
+
+.preview-item {
+    padding: 8px;
+    border-bottom: 1px solid #eaeaea;
+    font-size: 13px;
+    color: #2c3e50;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.preview-item:last-child {
+    border-bottom: none;
+}
+
+.preview-date {
+    color: #7f8c8d;
+    font-size: 12px;
+    min-width: 70px;
+}
+
+.preview-content {
+    flex: 1;
+    margin: 0 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.preview-label {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: #ecf0f1;
+    color: #2c3e50;
+}
+
+.preview-stats {
+    text-align: center;
+    font-size: 14px;
+    color: #7f8c8d;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #eaeaea;
+}
+
+.storage-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.dialog-btn.delete {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    color: #ffffff;
+}
+
+.dialog-btn.delete:hover {
+    background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+}
+
+.dialog-btn.delete:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <div class="top-bar">
+        <button class="nav-btn" id="menuBtn" title="打开标签管理">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="nav-title" id="currentTabName">聊天1</div>
+        <button class="nav-btn" id="settingsBtn" title="打开设置">
+            <i class="fas fa-cog"></i>
+        </button>
+    </div>
+
+    <!-- 聊天内容区域 -->
+    <div class="chat-container" id="chatContainer">
+        <!-- 消息会动态添加在这里 -->
+        <div class="empty-state" id="emptyState">
+            <div class="empty-icon">💬</div>
+            <div class="empty-title">聊天式记事本</div>
+            <div class="empty-text">在这里记录您的想法、灵感和待办事项</div>
+            <div class="empty-text" style="margin-top: 16px;">点击下方开始输入...</div>
+        </div>
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="input-container" id="inputContainer">
+        <div class="message-input-container">
+            <textarea 
+                class="message-input" 
+                id="messageInput" 
+                placeholder="这里输入..."
+                rows="1"
+            ></textarea>
+        </div>
+        <div class="input-toolbar">
+            <div class="toolbar-left">
+                <button class="format-btn" id="boldBtn" title="加粗">
+                    B
+                </button>
+                <button class="format-btn" id="italicBtn" title="斜体">
+                    I
+                </button>
+                <button class="format-btn" id="underlineBtn" title="下划线">
+                    U
+                </button>
+                <button class="format-btn" id="strikeBtn" title="删除线">
+                    S
+                </button>
+                <button class="tag-btn important" id="importantBtn" title="标记重要">
+                    !
+                </button>
+                <button class="tag-btn todo" id="todoBtn" title="标记待办">
+                    ✓
+                </button>
+            </div>
+            <div class="toolbar-right">
+                <button class="send-btn" id="sendBtn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 圆形加号按钮 -->
+    <div class="quick-actions">
+        <div class="quick-sub-buttons" id="quickSubButtons">
+            <button class="quick-sub-btn todo" id="todoListBtn" title="待办列表">
+                <i class="fas fa-tasks"></i>
+            </button>
+            <button class="quick-sub-btn completed" id="completedListBtn" title="完成列表">
+                <i class="fas fa-check-double"></i>
+            </button>
+            <button class="quick-sub-btn important" id="importantListBtn" title="重要列表">
+                <i class="fas fa-star"></i>
+            </button>
+        </div>
+        <button class="quick-main-btn" id="quickMainBtn" title="快速操作">
+            <i class="fas fa-plus"></i>
+        </button>
+    </div>
+
+    <!-- 气泡菜单 -->
+    <div class="bubble-menu" id="bubbleMenu">
+        <!-- 注意：助手消息的双击菜单会动态修改，只显示删除按钮 -->
+    </div>
+
+    <!-- 侧滑菜单 - 标签管理 -->
+    <div class="side-menu" id="sideMenu">
+        <div class="menu-header">
+            <div class="menu-title">
+                <i class="fas fa-comments"></i> 聊天标签
+            </div>
+        </div>
+        <div class="tabs-list" id="tabsList">
+            <!-- 标签会动态添加在这里 -->
+        </div>
+        <div class="menu-actions">
+            <button class="new-tab-btn" id="newTabBtn">
+                <i class="fas fa-plus"></i> 新建聊天
+            </button>
+        </div>
+    </div>
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- 设置菜单 - 底部弹出 -->
+    <div class="settings-menu" id="settingsMenu">
+        <div class="settings-header">
+            <div class="settings-title">设置</div>
+            <button class="close-settings" id="closeSettingsBtn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="settings-options">
+            <div class="settings-option" id="usernameOption">
+                <span class="option-text">修改用户名</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="assistantOption">
+                <span class="option-text">修改助手名称</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="replyContentOption">
+                <span class="option-text">自动回复概率及内容</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="sendKeyOption">
+                <span class="option-text">发送键设置</span>
+                <span class="option-value" id="sendKeyValue">Enter发送</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="fontSizeOption">
+                <span class="option-text">气泡字体大小</span>
+                <span class="option-value" id="fontSizeValue">16px</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="clearCacheOption">
+                <span class="option-text">清除所有用户设定和缓存</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="exportOption">
+                <span class="option-text">导出聊天记录</span>
+                <span style="color:#95a5a6; font-size:14px;">仅Excel格式，其他正在开发中</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="storageOption">
+            <span class="option-text">储存空间管理</span>
+            <span class="option-value" id="storageUsage">检查中...</span>
+            <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="themeOption">
+                <span class="option-text">颜色主题</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+            <div class="settings-option" id="aboutOption">
+                <span class="option-text">关于</span>
+                <i class="fas fa-chevron-right option-icon"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用户名修改弹窗 -->
+    <div class="username-dialog" id="usernameDialog">
+        <div class="dialog-header">
+            <div class="dialog-title">修改用户名</div>
+            <div class="dialog-text">设置您想要显示的用户名</div>
+        </div>
+        <input type="text" class="username-input" id="usernameInput" placeholder="请输入用户名" maxlength="20">
+        <div class="dialog-actions">
+            <button class="dialog-btn cancel" id="cancelUsernameBtn">取消</button>
+            <button class="dialog-btn save" id="saveUsernameBtn">保存</button>
+        </div>
+    </div>
+
+    <!-- 确认对话框 -->
+    <div class="confirm-dialog" id="confirmDialog">
+        <div class="dialog-header">
+            <div class="dialog-title" id="confirmTitle">确认操作</div>
+        </div>
+        <div class="confirm-message" id="confirmMessage"></div>
+        <div class="dialog-actions">
+            <button class="dialog-btn cancel" id="cancelConfirmBtn">取消</button>
+            <button class="dialog-btn save" id="confirmBtn">确认</button>
+        </div>
+    </div>
+
+    <!-- 重命名对话框 -->
+    <div class="rename-dialog" id="renameDialog">
+        <div class="dialog-header">
+            <div class="dialog-title">重命名标签</div>
+            <div class="dialog-text">请输入新的标签名称</div>
+        </div>
+        <input type="text" class="rename-input" id="renameInput" placeholder="请输入标签名称" maxlength="20">
+        <div class="dialog-actions">
+            <button class="dialog-btn cancel" id="cancelRenameBtn">取消</button>
+            <button class="dialog-btn save" id="saveRenameBtn">保存</button>
+        </div>
+    </div>
+
+    <!-- 助手名称对话框 -->
+    <div class="assistant-dialog" id="assistantDialog">
+        <div class="dialog-header">
+            <div class="dialog-title">修改助手名称</div>
+            <div class="dialog-text">设置自动回复助手的显示名称</div>
+        </div>
+        <input type="text" class="assistant-input" id="assistantInput" placeholder="请输入助手名称" maxlength="20">
+        <div class="dialog-actions">
+            <button class="dialog-btn cancel" id="cancelAssistantBtn">取消</button>
+            <button class="dialog-btn save" id="saveAssistantBtn">保存</button>
+        </div>
+    </div>
+
+<!-- 储存空间管理对话框 -->
+<div class="storage-dialog" id="storageDialog">
+    <div class="dialog-header">
+        <div class="dialog-title">储存空间管理</div>
+        <div class="dialog-text">管理您的聊天记录储存空间</div>
+    </div>
+    
+    <!-- 储存使用情况统计 -->
+    <div class="storage-summary" id="storageSummary">
+        <div class="storage-item">
+            <span class="storage-label">总消息数：</span>
+            <span class="storage-value" id="totalMessages">0</span>
+        </div>
+        <div class="storage-item">
+            <span class="storage-label">标签数量：</span>
+            <span class="storage-value" id="totalTabs">0</span>
+        </div>
+        <div class="storage-item">
+            <span class="storage-label">总储存量：</span>
+            <span class="storage-value" id="totalStorage">0 KB</span>
+        </div>
+    </div>
+    
+    <!-- 时间选择器 -->
+    <div class="time-range-selector">
+        <div class="dialog-text">选择删除的时间范围：</div>
+        <div class="date-inputs">
+            <div class="date-input-group">
+                <label for="startDate">开始日期：</label>
+                <input type="date" class="date-input" id="startDate">
+            </div>
+            <div class="date-input-group">
+                <label for="endDate">结束日期：</label>
+                <input type="date" class="date-input" id="endDate">
+            </div>
+        </div>
+        <div class="quick-buttons">
+            <button class="time-range-btn" data-range="7d">最近7天</button>
+            <button class="time-range-btn" data-range="30d">最近30天</button>
+            <button class="time-range-btn" data-range="all">全部时间</button>
+        </div>
+    </div>
+    
+    <!-- 预览区域 -->
+    <div class="preview-section">
+        <div class="dialog-text">将删除的消息：</div>
+        <div class="preview-list" id="previewList">
+            <!-- 预览内容将动态显示在这里 -->
+        </div>
+        <div class="preview-stats" id="previewStats">
+            无选中消息
+        </div>
+    </div>
+    
+    <!-- 操作按钮 -->
+    <div class="storage-actions">
+        <button class="dialog-btn cancel" id="cancelStorageBtn">取消</button>
+        <button class="dialog-btn delete" id="deleteSelectedBtn" disabled>删除选中</button>
+    </div>
+</div>
+
+    <!-- 发送方式设置对话框 -->
+    <div class="send-key-dialog" id="sendKeyDialog">
+        <div class="dialog-header">
+            <div class="dialog-title">发送键设置</div>
+            <div class="dialog-text">选择按Enter键时的行为</div>
+        </div>
+        <div class="dialog-options">
+            <div class="send-key-option" data-value="enter">
+                <div class="option-radio"></div>
+                <div class="option-text-full">
+                    <div class="option-title">Enter发送消息</div>
+                    <div class="option-desc">按Enter键直接发送消息，Shift+Enter换行</div>
+                </div>
+            </div>
+            <div class="send-key-option" data-value="shift-enter">
+                <div class="option-radio"></div>
+                <div class="option-text-full">
+                    <div class="option-title">Enter换行</div>
+                    <div class="option-desc">按Enter键换行，Shift+Enter发送消息</div>
+                </div>
+            </div>
+        </div>
+        <div class="dialog-actions">
+            <button class="dialog-btn cancel" id="cancelSendKeyBtn">取消</button>
+            <button class="dialog-btn save" id="saveSendKeyBtn">保存</button>
+        </div>
+    </div>
+
+    <!-- 字体大小设置对话框 -->
+    <div class="font-size-dialog" id="fontSizeDialog">
+        <div class="dialog-header">
+            <div class="dialog-title">气泡字体大小</div>
+            <div class="dialog-text">调整对话气泡中的字体大小</div>
+        </div>
+        
+        <div class="font-size-value" id="fontSizeDisplay">16px</div>
+        <input type="range" class="font-size-slider" id="fontSizeSlider" min="12" max="24" step="1" value="16">
+        
+        <div class="dialog-actions" style="margin-top: 24px;">
+            <button class="dialog-btn cancel" id="cancelFontSizeBtn">取消</button>
+            <button class="dialog-btn save" id="saveFontSizeBtn">保存</button>
+        </div>
+    </div>
+
+    <!-- 自动回复内容管理对话框 -->
+    <div class="reply-content-dialog" id="replyContentDialog">
+        <div class="dialog-header">
+            <div class="dialog-title">自动回复设置</div>
+            <div class="dialog-text">设置自动回复概率和管理回复内容</div>
+        </div>
+        
+        <div class="probability-value" id="probabilityDisplay">概率: 70%</div>
+        <input type="range" class="probability-slider" id="probabilitySlider" min="0" max="100" step="10" value="70">
+        
+        <div style="margin-top: 24px;">
+            <div class="dialog-text">自动回复内容列表：</div>
+            <div class="reply-list" id="replyList">
+                <!-- 回复内容会动态添加在这里 -->
+            </div>
+        </div>
+        
+        <div class="add-reply-container">
+            <input type="text" class="add-reply-input" id="addReplyInput" placeholder="输入新的回复内容" maxlength="100">
+            <button class="add-reply-btn" id="addReplyBtn">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+        
+        <div class="dialog-actions" style="margin-top: 24px;">
+            <button class="dialog-btn cancel" id="cancelReplyContentBtn">取消</button>
+            <button class="dialog-btn save" id="saveReplyContentBtn">保存</button>
+        </div>
+    </div>
+
+    <script>
+        // 状态管理
+        const state = {
+            messages: [],
+            username: '我',
+            assistantName: '助手',
+            tabs: [
+                { id: 1, name: '聊天1', messages: [], active: true, pinned: false },
+                { id: 2, name: '聊天2', messages: [], active: false, pinned: false },
+                { id: 3, name: '聊天3', messages: [], active: false, pinned: false }
+            ],
+            currentTabId: 1,
+            autoReplyProbability: 70,
+            autoReplies: [
+                "收到！已记录。",
+                "明白，继续说吧。",
+                "好的，我在听。",
+                "嗯，有道理。",
+                "是的，我同意。",
+                "了解了，谢谢分享。",
+                "这个想法不错！",
+                "继续，我在认真记录。",
+                "好的，还有什么要补充的吗？",
+                "已收到，请继续。"
+            ],
+            completedTodos: {},
+            assistantTodoMap: {},
+            assistantTodoStates: {},
+            assistantTodoTableMessages: {}, // 记录助手生成的待办表格消息ID
+            settings: {
+                sendKey: 'enter', // 默认Enter发送
+                theme: 'light',
+                fontSize: 16 // 默认字体大小
+            },
+            selectedMessage: null,
+            lastTapTime: 0,
+            tapTimeout: null,
+            quickMenuOpen: false
+        };
+
+        // DOM元素引用
+        const chatContainer = document.getElementById('chatContainer');
+        const emptyState = document.getElementById('emptyState');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const currentTabName = document.getElementById('currentTabName');
+        const sideMenu = document.getElementById('sideMenu');
+        const menuOverlay = document.getElementById('menuOverlay');
+        const menuBtn = document.getElementById('menuBtn');
+        const settingsMenu = document.getElementById('settingsMenu');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        const tabsList = document.getElementById('tabsList');
+        const newTabBtn = document.getElementById('newTabBtn');
+        const inputContainer = document.getElementById('inputContainer');
+        
+        // 格式按钮
+        const boldBtn = document.getElementById('boldBtn');
+        const italicBtn = document.getElementById('italicBtn');
+        const underlineBtn = document.getElementById('underlineBtn');
+        const strikeBtn = document.getElementById('strikeBtn');
+        const importantBtn = document.getElementById('importantBtn');
+        const todoBtn = document.getElementById('todoBtn');
+        
+        // 快速按钮
+        const quickMainBtn = document.getElementById('quickMainBtn');
+        const quickSubButtons = document.getElementById('quickSubButtons');
+        const todoListBtn = document.getElementById('todoListBtn');
+        const completedListBtn = document.getElementById('completedListBtn');
+        const importantListBtn = document.getElementById('importantListBtn');
+        
+        // 气泡菜单
+        const bubbleMenu = document.getElementById('bubbleMenu');
+        
+        // 对话框
+        const usernameDialog = document.getElementById('usernameDialog');
+        const usernameInput = document.getElementById('usernameInput');
+        const saveUsernameBtn = document.getElementById('saveUsernameBtn');
+        const cancelUsernameBtn = document.getElementById('cancelUsernameBtn');
+        
+        const confirmDialog = document.getElementById('confirmDialog');
+        const confirmTitle = document.getElementById('confirmTitle');
+        const confirmMessage = document.getElementById('confirmMessage');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
+        
+        const renameDialog = document.getElementById('renameDialog');
+        const renameInput = document.getElementById('renameInput');
+        const saveRenameBtn = document.getElementById('saveRenameBtn');
+        const cancelRenameBtn = document.getElementById('cancelRenameBtn');
+        
+        const assistantDialog = document.getElementById('assistantDialog');
+        const assistantInput = document.getElementById('assistantInput');
+        const saveAssistantBtn = document.getElementById('saveAssistantBtn');
+        const cancelAssistantBtn = document.getElementById('cancelAssistantBtn');
+        
+        const replyContentDialog = document.getElementById('replyContentDialog');
+        const probabilitySlider = document.getElementById('probabilitySlider');
+        const probabilityDisplay = document.getElementById('probabilityDisplay');
+        const replyList = document.getElementById('replyList');
+        const addReplyInput = document.getElementById('addReplyInput');
+        const addReplyBtn = document.getElementById('addReplyBtn');
+        const saveReplyContentBtn = document.getElementById('saveReplyContentBtn');
+        const cancelReplyContentBtn = document.getElementById('cancelReplyContentBtn');
+        const replyContentOption = document.getElementById('replyContentOption');
+        const clearCacheOption = document.getElementById('clearCacheOption');
+        
+        // 字体大小设置
+        const fontSizeOption = document.getElementById('fontSizeOption');
+        const fontSizeValue = document.getElementById('fontSizeValue');
+        const fontSizeDialog = document.getElementById('fontSizeDialog');
+        const fontSizeSlider = document.getElementById('fontSizeSlider');
+        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+        const saveFontSizeBtn = document.getElementById('saveFontSizeBtn');
+        const cancelFontSizeBtn = document.getElementById('cancelFontSizeBtn');
+        
+        // 发送方式设置
+        const sendKeyOption = document.getElementById('sendKeyOption');
+        const sendKeyValue = document.getElementById('sendKeyValue');
+        const sendKeyDialog = document.getElementById('sendKeyDialog');
+        const cancelSendKeyBtn = document.getElementById('cancelSendKeyBtn');
+        const saveSendKeyBtn = document.getElementById('saveSendKeyBtn');
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+            updateCurrentTab();
+            renderMessages();
+            updateTabsList();
+            setupEventListeners();
+            
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (currentTab) {
+                currentTabName.textContent = currentTab.name;
+            }
+            
+            // 更新发送方式显示
+            updateSendKeyDisplay();
+            
+            // 更新字体大小显示
+            updateFontSizeDisplay();
+            
+            updateProbabilityDisplay();
+            updateReplyList();
+// 更新储存使用情况显示
+updateStorageStats();
+
+// 设置储存使用情况初始显示
+document.getElementById('storageUsage').textContent = '检查中...';
+setTimeout(() => {
+    updateStorageStats();
+}, 500);
+        });
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 发送按钮
+            sendBtn.addEventListener('click', sendMessage);
+            
+            // 输入框输入监听
+            messageInput.addEventListener('input', handleInputChange);
+            messageInput.addEventListener('focus', handleInputFocus);
+            messageInput.addEventListener('blur', handleInputBlur);
+            
+            // 输入框按键监听
+            messageInput.addEventListener('keydown', handleKeyDown);
+            
+            // 输入法处理
+            messageInput.addEventListener('compositionstart', () => {
+                window.isComposing = true;
+            });
+            
+            messageInput.addEventListener('compositionend', () => {
+                window.isComposing = false;
+            });
+            
+            // 菜单按钮
+            menuBtn.addEventListener('click', openSideMenu);
+            menuOverlay.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeAllMenusAndDialogs();
+            });
+            
+            // 设置按钮
+            settingsBtn.addEventListener('click', openSettingsMenu);
+            closeSettingsBtn.addEventListener('click', closeSettingsMenu);
+            
+            // 新建标签按钮
+            newTabBtn.addEventListener('click', createNewTab);
+            
+            // 格式按钮
+            boldBtn.addEventListener('click', () => insertFormatting('[b]', '[/b]'));
+            italicBtn.addEventListener('click', () => insertFormatting('[i]', '[/i]'));
+            underlineBtn.addEventListener('click', () => insertFormatting('[u]', '[/u]'));
+            strikeBtn.addEventListener('click', () => insertFormatting('[s]', '[/s]'));
+            
+            // 标签按钮
+            importantBtn.addEventListener('click', () => insertText('[重要] '));
+            todoBtn.addEventListener('click', () => insertText('[待办] '));
+            
+            // 快速按钮
+            quickMainBtn.addEventListener('click', toggleQuickMenu);
+            todoListBtn.addEventListener('click', () => sendQueryToAssistant('todo'));
+            completedListBtn.addEventListener('click', () => sendQueryToAssistant('completed'));
+            importantListBtn.addEventListener('click', () => sendQueryToAssistant('important'));
+            
+            // 用户名修改
+            document.getElementById('usernameOption').addEventListener('click', () => {
+                closeSettingsMenu();
+                openUsernameDialog();
+            });
+            
+            saveUsernameBtn.addEventListener('click', saveUsername);
+            cancelUsernameBtn.addEventListener('click', closeUsernameDialog);
+            
+            // 助手名称修改
+            document.getElementById('assistantOption').addEventListener('click', () => {
+                closeSettingsMenu();
+                openAssistantDialog();
+            });
+            
+            saveAssistantBtn.addEventListener('click', saveAssistantName);
+            cancelAssistantBtn.addEventListener('click', closeAssistantDialog);
+            
+            // 字体大小设置
+            fontSizeOption.addEventListener('click', () => {
+                closeSettingsMenu();
+                openFontSizeDialog();
+            });
+            
+            fontSizeSlider.addEventListener('input', () => {
+                fontSizeDisplay.textContent = fontSizeSlider.value + 'px';
+            });
+            
+            saveFontSizeBtn.addEventListener('click', saveFontSizeSetting);
+            cancelFontSizeBtn.addEventListener('click', closeFontSizeDialog);
+            
+            // 自动回复内容管理
+            replyContentOption.addEventListener('click', () => {
+                closeSettingsMenu();
+                openReplyContentDialog();
+            });
+            
+            probabilitySlider.addEventListener('input', () => {
+                probabilityDisplay.textContent = `概率: ${probabilitySlider.value}%`;
+            });
+            
+            addReplyBtn.addEventListener('click', addNewReply);
+            addReplyInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    addNewReply();
+                }
+            });
+            
+            saveReplyContentBtn.addEventListener('click', saveReplyContentSettings);
+            cancelReplyContentBtn.addEventListener('click', closeReplyContentDialog);
+            
+            // 发送方式设置
+            sendKeyOption.addEventListener('click', () => {
+                closeSettingsMenu();
+                openSendKeyDialog();
+            });
+            
+            saveSendKeyBtn.addEventListener('click', saveSendKeySetting);
+            cancelSendKeyBtn.addEventListener('click', closeSendKeyDialog);
+            
+            // 清除所有用户设定和缓存
+            clearCacheOption.addEventListener('click', () => {
+                closeSettingsMenu();
+                showClearCacheConfirm();
+            });
+            
+            // 确认对话框按钮
+            confirmBtn.addEventListener('click', handleConfirmAction);
+            cancelConfirmBtn.addEventListener('click', closeConfirmDialog);
+            
+            // 重命名对话框按钮
+            saveRenameBtn.addEventListener('click', saveRename);
+            cancelRenameBtn.addEventListener('click', closeRenameDialog);
+            
+            // 设置选项
+            document.getElementById('exportOption').addEventListener('click', () => {
+                closeSettingsMenu();
+                showExportInfo();
+            });
+            
+            document.getElementById('themeOption').addEventListener('click', () => {
+                toggleTheme();
+                closeSettingsMenu();
+            });
+            
+            document.getElementById('aboutOption').addEventListener('click', () => {
+                closeSettingsMenu();
+                showAboutInfo();
+            });
+            
+            // 点击外部关闭菜单
+            document.addEventListener('click', (e) => {
+                if (!bubbleMenu.contains(e.target) && bubbleMenu.classList.contains('show')) {
+                    closeBubbleMenu();
+                }
+                if (!quickMainBtn.contains(e.target) && !quickSubButtons.contains(e.target)) {
+                    closeQuickMenu();
+                }
+            });
+            
+            // 处理窗口大小变化
+            window.addEventListener('resize', handleResize);
+            
+            // 双击事件
+            setupDoubleClickEvents();
+
+// 储存空间管理选项
+document.getElementById('storageOption').addEventListener('click', () => {
+    closeSettingsMenu();
+    openStorageDialog();
+});
+
+// 获取对话框元素并添加事件
+const storageDialog = document.getElementById('storageDialog');
+const cancelStorageBtn = document.getElementById('cancelStorageBtn');
+const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+const startDate = document.getElementById('startDate');
+const endDate = document.getElementById('endDate');
+
+cancelStorageBtn.addEventListener('click', closeStorageDialog);
+deleteSelectedBtn.addEventListener('click', deleteSelectedMessages);
+
+// 快速时间范围按钮
+document.querySelectorAll('.time-range-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        setTimeRange(this.dataset.range);
+    });
+});
+
+// 日期变化时更新预览
+startDate.addEventListener('change', updatePreview);
+endDate.addEventListener('change', updatePreview);
+}
+
+// 打开储存空间管理对话框
+function openStorageDialog() {
+    // 更新储存使用情况
+    updateStorageStats();
+    
+    // 设置默认日期范围（最近30天）
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - 30);
+    
+    startDate.value = formatDateForInput(start);
+    endDate.value = formatDateForInput(end);
+    
+    // 更新预览
+    updatePreview();
+    
+    storageDialog.classList.add('show');
+    menuOverlay.classList.add('show');
+}
+
+// 关闭储存空间对话框
+function closeStorageDialog() {
+    storageDialog.classList.remove('show');
+    menuOverlay.classList.remove('show');
+}
+
+// 更新储存使用情况统计
+function updateStorageStats() {
+    let totalMessages = 0;
+    let totalStorage = 0;
+    
+    // 计算所有标签的消息总数和储存量
+    state.tabs.forEach(tab => {
+        totalMessages += tab.messages.length;
+        totalStorage += JSON.stringify(tab.messages).length;
+    });
+    
+    // 更新显示
+    document.getElementById('totalMessages').textContent = totalMessages;
+    document.getElementById('totalTabs').textContent = state.tabs.length;
+    document.getElementById('totalStorage').textContent = formatStorageSize(totalStorage);
+    
+    // 更新设置菜单中的简略显示
+    document.getElementById('storageUsage').textContent = formatStorageSize(totalStorage);
+}
+
+// 格式化储存大小
+function formatStorageSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+// 为日期输入框格式化日期
+function formatDateForInput(date) {
+    return date.toISOString().split('T')[0];
+}
+
+// 设置时间范围
+function setTimeRange(range) {
+    const end = new Date();
+    const start = new Date();
+    
+    switch(range) {
+        case '7d':
+            start.setDate(end.getDate() - 7);
+            break;
+        case '30d':
+            start.setDate(end.getDate() - 30);
+            break;
+        case 'all':
+            // 找到最早的日期
+            let earliestDate = new Date();
+            state.tabs.forEach(tab => {
+                tab.messages.forEach(msg => {
+                    const msgDate = new Date(msg.time);
+                    if (msgDate < earliestDate) {
+                        earliestDate = msgDate;
+                    }
+                });
+            });
+            start.setTime(earliestDate.getTime());
+            break;
+    }
+    
+    startDate.value = formatDateForInput(start);
+    endDate.value = formatDateForInput(end);
+    
+    updatePreview();
+}
+
+// 更新预览
+function updatePreview() {
+    const start = new Date(startDate.value);
+    const end = new Date(endDate.value);
+    end.setHours(23, 59, 59, 999); // 包括结束日的全天
+    
+    const previewList = document.getElementById('previewList');
+    const previewStats = document.getElementById('previewStats');
+    
+    // 清空预览
+    previewList.innerHTML = '';
+    
+    let selectedMessages = [];
+    let selectedMessagesCount = 0;
+    
+    // 收集选定时间范围内的消息
+    state.tabs.forEach(tab => {
+        tab.messages.forEach(msg => {
+            const msgDate = new Date(msg.time);
+            if (msgDate >= start && msgDate <= end) {
+                selectedMessages.push({
+                    tab: tab.name,
+                    date: msgDate,
+                    content: msg.content,
+                    username: msg.username
+                });
+                selectedMessagesCount++;
+            }
+        });
+    });
+    
+    // 显示预览（最多显示10条）
+    const maxPreview = 10;
+    selectedMessages.slice(0, maxPreview).forEach(msg => {
+        const previewItem = document.createElement('div');
+        previewItem.className = 'preview-item';
+        
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'preview-date';
+        dateSpan.textContent = formatTime(msg.date);
+        
+        const contentSpan = document.createElement('span');
+        contentSpan.className = 'preview-content';
+        contentSpan.textContent = msg.content.replace(/\[.*?\]/g, '').substring(0, 30);
+        
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'preview-label';
+        labelSpan.textContent = msg.tab;
+        
+        previewItem.appendChild(dateSpan);
+        previewItem.appendChild(contentSpan);
+        previewItem.appendChild(labelSpan);
+        previewList.appendChild(previewItem);
+    });
+    
+    if (selectedMessagesCount > maxPreview) {
+        const moreItem = document.createElement('div');
+        moreItem.className = 'preview-item';
+        moreItem.style.justifyContent = 'center';
+        moreItem.style.color = '#7f8c8d';
+        moreItem.textContent = `...还有${selectedMessagesCount - maxPreview}条消息`;
+        previewList.appendChild(moreItem);
+    }
+    
+    // 更新统计信息
+    if (selectedMessagesCount > 0) {
+        previewStats.textContent = `将删除 ${selectedMessagesCount} 条消息，来自 ${new Set(selectedMessages.map(m => m.tab)).size} 个标签`;
+        deleteSelectedBtn.disabled = false;
+    } else {
+        previewStats.textContent = '无选中消息';
+        deleteSelectedBtn.disabled = true;
+    }
+}
+
+// 删除选定的消息
+function deleteSelectedMessages() {
+    const start = new Date(startDate.value);
+    const end = new Date(endDate.value);
+    end.setHours(23, 59, 59, 999);
+    
+    let deleteCount = 0;
+    
+    // 从每个标签中删除消息
+    state.tabs.forEach(tab => {
+        const originalLength = tab.messages.length;
+        tab.messages = tab.messages.filter(msg => {
+            const msgDate = new Date(msg.time);
+            return !(msgDate >= start && msgDate <= end);
+        });
+        deleteCount += (originalLength - tab.messages.length);
+    });
+    
+    // 如果当前标签有消息被删除，重新渲染
+    const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+    if (currentTab) {
+        state.messages = [...currentTab.messages];
+        renderMessages();
+    }
+    
+    // 保存到本地存储
+    saveToLocalStorage();
+    
+    // 关闭对话框并显示确认
+    closeStorageDialog();
+    showConfirmDialog('删除完成', `已删除 ${deleteCount} 条消息`, null, true);
+    
+    // 更新储存统计
+    updateStorageStats();
+}
+
+        // 关闭所有菜单和对话框
+        function closeAllMenusAndDialogs() {
+            // 关闭所有对话框
+            if (renameDialog.classList.contains('show')) {
+                closeRenameDialog();
+            } else if (confirmDialog.classList.contains('show')) {
+                closeConfirmDialog();
+            } else if (usernameDialog.classList.contains('show')) {
+                closeUsernameDialog();
+            } else if (assistantDialog.classList.contains('show')) {
+                closeAssistantDialog();
+            } else if (replyContentDialog.classList.contains('show')) {
+                closeReplyContentDialog();
+            } else if (sendKeyDialog.classList.contains('show')) {
+                closeSendKeyDialog();
+            } else if (fontSizeDialog.classList.contains('show')) {
+                closeFontSizeDialog();
+            } else if (settingsMenu.classList.contains('open')) {
+                closeSettingsMenu();
+            } else if (sideMenu.classList.contains('open')) {
+                closeSideMenu();
+            }
+            
+            // 确保遮罩层也关闭
+            menuOverlay.classList.remove('show');
+        }
+
+        // 切换快速菜单
+        function toggleQuickMenu() {
+            if (state.quickMenuOpen) {
+                closeQuickMenu();
+            } else {
+                openQuickMenu();
+            }
+        }
+
+        // 打开快速菜单
+        function openQuickMenu() {
+            quickSubButtons.classList.add('show');
+            quickMainBtn.style.transform = 'rotate(45deg)';
+            state.quickMenuOpen = true;
+        }
+
+        // 关闭快速菜单
+        function closeQuickMenu() {
+            quickSubButtons.classList.remove('show');
+            quickMainBtn.style.transform = 'rotate(0deg)';
+            state.quickMenuOpen = false;
+        }
+
+        // 打开字体大小对话框
+        function openFontSizeDialog() {
+            fontSizeSlider.value = state.settings.fontSize;
+            fontSizeDisplay.textContent = state.settings.fontSize + 'px';
+            fontSizeDialog.classList.add('show');
+            menuOverlay.classList.add('show');
+        }
+
+        // 关闭字体大小对话框
+        function closeFontSizeDialog() {
+            fontSizeDialog.classList.remove('show');
+            menuOverlay.classList.remove('show');
+        }
+
+        // 保存字体大小设置
+        function saveFontSizeSetting() {
+            const newSize = parseInt(fontSizeSlider.value);
+            if (newSize >= 12 && newSize <= 24) {
+                state.settings.fontSize = newSize;
+                updateFontSizeDisplay();
+                applyFontSizeToBubbles();
+                saveToLocalStorage();
+                closeFontSizeDialog();
+                showConfirmDialog('设置成功', `气泡字体大小已调整为${newSize}px`, null, true);
+            }
+        }
+
+        // 更新字体大小显示
+        function updateFontSizeDisplay() {
+            fontSizeValue.textContent = state.settings.fontSize + 'px';
+        }
+
+        // 应用字体大小到所有气泡
+        function applyFontSizeToBubbles() {
+            const bubbles = document.querySelectorAll('.bubble');
+            bubbles.forEach(bubble => {
+                bubble.style.fontSize = state.settings.fontSize + 'px';
+            });
+        }
+
+        // 打开自动回复内容对话框
+        function openReplyContentDialog() {
+            probabilitySlider.value = state.autoReplyProbability;
+            probabilityDisplay.textContent = `概率: ${state.autoReplyProbability}%`;
+            replyContentDialog.classList.add('show');
+            menuOverlay.classList.add('show');
+            updateReplyList();
+        }
+
+        // 更新回复列表
+        function updateReplyList() {
+            replyList.innerHTML = '';
+            
+            state.autoReplies.forEach((reply, index) => {
+                const replyItem = document.createElement('div');
+                replyItem.className = 'reply-item';
+                
+                const replyText = document.createElement('div');
+                replyText.className = 'reply-text';
+                replyText.textContent = reply;
+                
+                const replyActions = document.createElement('div');
+                replyActions.className = 'reply-actions';
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'reply-action-btn delete';
+                deleteBtn.title = '删除';
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                deleteBtn.addEventListener('click', () => {
+                    state.autoReplies.splice(index, 1);
+                    updateReplyList();
+                });
+                
+                replyActions.appendChild(deleteBtn);
+                
+                replyItem.appendChild(replyText);
+                replyItem.appendChild(replyActions);
+                
+                replyList.appendChild(replyItem);
+            });
+        }
+
+        // 添加新回复
+        function addNewReply() {
+            const newReply = addReplyInput.value.trim();
+            if (newReply) {
+                state.autoReplies.push(newReply);
+                addReplyInput.value = '';
+                updateReplyList();
+            }
+        }
+
+        // 保存自动回复内容设置
+        function saveReplyContentSettings() {
+            state.autoReplyProbability = parseInt(probabilitySlider.value);
+            updateProbabilityDisplay();
+            saveToLocalStorage();
+            closeReplyContentDialog();
+            showConfirmDialog('设置成功', `自动回复设置已保存！`, null, true);
+        }
+
+        // 关闭自动回复内容对话框
+        function closeReplyContentDialog() {
+            replyContentDialog.classList.remove('show');
+            menuOverlay.classList.remove('show');
+        }
+
+        // 打开发送方式对话框
+        function openSendKeyDialog() {
+            // 更新选项状态
+            document.querySelectorAll('.send-key-option').forEach(option => {
+                option.classList.remove('selected');
+                if (option.dataset.value === state.settings.sendKey) {
+                    option.classList.add('selected');
+                }
+            });
+            
+            // 添加选项点击事件
+            document.querySelectorAll('.send-key-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    document.querySelectorAll('.send-key-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    this.classList.add('selected');
+                });
+            });
+            
+            sendKeyDialog.classList.add('show');
+            menuOverlay.classList.add('show');
+        }
+
+        // 关闭发送方式对话框
+        function closeSendKeyDialog() {
+            sendKeyDialog.classList.remove('show');
+            menuOverlay.classList.remove('show');
+        }
+
+        // 保存发送方式设置
+        function saveSendKeySetting() {
+            const selectedOption = document.querySelector('.send-key-option.selected');
+            if (selectedOption) {
+                const newSendKey = selectedOption.dataset.value;
+                state.settings.sendKey = newSendKey;
+                
+                // 更新显示
+                updateSendKeyDisplay();
+                
+                saveToLocalStorage();
+                closeSendKeyDialog();
+                showConfirmDialog('设置成功', `发送键已设置为${newSendKey === 'enter' ? 'Enter发送' : 'Enter换行'}`, null, true);
+            }
+        }
+
+        // 更新发送方式显示
+        function updateSendKeyDisplay() {
+            const displayText = state.settings.sendKey === 'enter' ? 'Enter发送' : 'Enter换行';
+            sendKeyValue.textContent = displayText;
+        }
+
+        // 设置双击事件
+        function setupDoubleClickEvents() {
+            chatContainer.addEventListener('click', (e) => {
+                const bubble = e.target.closest('.bubble');
+                if (!bubble) return;
+                
+                // 如果点击的是待办复选框，切换完成状态
+                if (bubble.classList.contains('todo-pending') || bubble.classList.contains('todo-completed')) {
+                    const messageElement = bubble.closest('.message');
+                    if (messageElement && messageElement.classList.contains('other')) {
+                        const messageId = parseInt(messageElement.dataset.messageId);
+                        toggleTodoStatus(messageId);
+                        return;
+                    }
+                }
+                
+                const messageElement = bubble.closest('.message');
+                if (messageElement) {
+                    const messageId = parseInt(messageElement.dataset.messageId);
+                    const message = findMessageById(messageId);
+                    if (message) {
+                        state.selectedMessage = message;
+                        
+                        // 双击检测
+                        const currentTime = new Date().getTime();
+                        const tapLength = currentTime - state.lastTapTime;
+                        
+                        if (tapLength < 300 && tapLength > 0) {
+                            // 双击事件
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            // 添加抖动效果
+                            bubble.classList.add('shake');
+                            setTimeout(() => {
+                                bubble.classList.remove('shake');
+                            }, 300);
+                            
+                            // 显示气泡菜单
+                            showBubbleMenu(e.clientX, e.clientY);
+                            
+                            // 更新菜单项状态（根据消息发送者显示不同菜单）
+                            updateBubbleMenuItems(message);
+                            
+                            state.lastTapTime = 0;
+                            
+                            if (state.tapTimeout) {
+                                clearTimeout(state.tapTimeout);
+                                state.tapTimeout = null;
+                            }
+                        } else {
+                            state.lastTapTime = currentTime;
+                            state.tapTimeout = setTimeout(() => {
+                                state.lastTapTime = 0;
+                            }, 300);
+                        }
+                    }
+                }
+            });
+            
+            // 气泡菜单项点击事件
+            bubbleMenu.addEventListener('click', (e) => {
+                const menuItem = e.target.closest('.bubble-menu-item');
+                if (menuItem && state.selectedMessage) {
+                    const action = menuItem.dataset.action;
+                    handleBubbleMenuAction(action);
+                }
+            });
+            
+            // 处理助手待办表格的勾选
+            chatContainer.addEventListener('click', (e) => {
+                // 处理助手待办表格的保存按钮
+                const saveBtn = e.target.closest('.save-todo-btn');
+                if (saveBtn) {
+                    const tableContainer = saveBtn.closest('.todo-table-container');
+                    if (tableContainer) {
+                        const table = tableContainer.querySelector('.todo-table');
+                        const checkboxes = table.querySelectorAll('.todo-checkbox');
+                        let checkedCount = 0;
+                        
+                        checkboxes.forEach((checkbox, index) => {
+                            if (checkbox.checked) {
+                                checkedCount++;
+                                const row = checkbox.closest('tr');
+                                const mapKey = row.dataset.mapKey;
+                                const originalInfo = state.assistantTodoMap[mapKey];
+                                
+                                if (originalInfo) {
+                                    // 更新原始消息为完成状态
+                                    const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+                                    if (currentTab) {
+                                        const originalMessage = currentTab.messages.find(m => m.id === originalInfo.originalMessageId);
+                                        if (originalMessage && originalMessage.content.includes('[待办]') && !originalMessage.content.includes('[待办完成]')) {
+                                            originalMessage.content = originalMessage.content.replace('[待办]', '[待办完成]');
+                                            // 标记为已完成状态
+                                            state.assistantTodoStates[mapKey] = true;
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // 生成提示消息
+                        const now = new Date();
+                        const assistantMessageId = Date.now() + 1;
+                        const assistantReplyMessage = {
+                            id: assistantMessageId,
+                            username: state.assistantName,
+                            content: `勾选的内容已标记为已完成，后续可在已完成中查看。`,
+                            time: now,
+                            isSelf: false,
+                            formattedTime: formatTime(now)
+                        };
+                        
+                        const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+                        if (currentTab) {
+                            currentTab.messages.push(assistantReplyMessage);
+                        }
+                        
+                        addMessageToChat(assistantReplyMessage);
+                        saveToLocalStorage();
+                        
+                        // 移除表格（不保存到消息记录中）
+                        tableContainer.remove();
+                    }
+                }
+            });
+        }
+
+        // 更新气泡菜单项状态 - 修改：增加标记完成/重新待办选项
+        function updateBubbleMenuItems(message) {
+            // 清空气泡菜单
+            bubbleMenu.innerHTML = '';
+            
+            // 如果是助手发送的消息，只显示删除选项
+            if (!message.isSelf) {
+                const deleteItem = document.createElement('button');
+                deleteItem.className = 'bubble-menu-item delete';
+                deleteItem.dataset.action = 'delete';
+                deleteItem.innerHTML = '<i class="fas fa-trash"></i> 删除消息';
+                bubbleMenu.appendChild(deleteItem);
+                return;
+            }
+            
+            // 如果是自己发送的消息，显示完整菜单
+            
+            // 重要选项
+            const importantItem = document.createElement('button');
+            importantItem.className = 'bubble-menu-item important';
+            importantItem.dataset.action = 'toggleImportant';
+            
+            const importantIcon = document.createElement('i');
+            importantIcon.className = 'fas fa-exclamation-circle';
+            
+            const importantText = document.createElement('span');
+            importantText.textContent = message.content.includes('[重要]') ? '取消重要' : '重要';
+            
+            importantItem.appendChild(importantIcon);
+            importantItem.appendChild(importantText);
+            
+            // 待办/完成/重新待办选项
+            let todoItem;
+            
+            if (message.content.includes('[待办完成]')) {
+                // 已完成状态：显示重新待办和取消待办
+                const reopenItem = document.createElement('button');
+                reopenItem.className = 'bubble-menu-item reopen';
+                reopenItem.dataset.action = 'reopenTodo';
+                
+                const reopenIcon = document.createElement('i');
+                reopenIcon.className = 'fas fa-undo';
+                
+                const reopenText = document.createElement('span');
+                reopenText.textContent = '重新待办';
+                
+                reopenItem.appendChild(reopenIcon);
+                reopenItem.appendChild(reopenText);
+                bubbleMenu.appendChild(reopenItem);
+                
+                todoItem = document.createElement('button');
+                todoItem.className = 'bubble-menu-item todo';
+                todoItem.dataset.action = 'toggleTodo';
+                
+                const todoIcon = document.createElement('i');
+                todoIcon.className = 'fas fa-times-circle';
+                
+                const todoText = document.createElement('span');
+                todoText.textContent = '取消待办';
+                
+                todoItem.appendChild(todoIcon);
+                todoItem.appendChild(todoText);
+            } else if (message.content.includes('[待办]')) {
+                // 待办状态：显示标记完成和取消待办
+                const completeItem = document.createElement('button');
+                completeItem.className = 'bubble-menu-item complete';
+                completeItem.dataset.action = 'completeTodo';
+                
+                const completeIcon = document.createElement('i');
+                completeIcon.className = 'fas fa-check-circle';
+                
+                const completeText = document.createElement('span');
+                completeText.textContent = '标记完成';
+                
+                completeItem.appendChild(completeIcon);
+                completeItem.appendChild(completeText);
+                bubbleMenu.appendChild(completeItem);
+                
+                todoItem = document.createElement('button');
+                todoItem.className = 'bubble-menu-item todo';
+                todoItem.dataset.action = 'toggleTodo';
+                
+                const todoIcon = document.createElement('i');
+                todoIcon.className = 'fas fa-times-circle';
+                
+                const todoText = document.createElement('span');
+                todoText.textContent = '取消待办';
+                
+                todoItem.appendChild(todoIcon);
+                todoItem.appendChild(todoText);
+            } else {
+                // 非待办状态：显示待办选项
+                todoItem = document.createElement('button');
+                todoItem.className = 'bubble-menu-item todo';
+                todoItem.dataset.action = 'toggleTodo';
+                
+                const todoIcon = document.createElement('i');
+                todoIcon.className = 'fas fa-check-circle';
+                
+                const todoText = document.createElement('span');
+                todoText.textContent = '待办';
+                
+                todoItem.appendChild(todoIcon);
+                todoItem.appendChild(todoText);
+            }
+            
+            // 删除选项
+            const deleteItem = document.createElement('button');
+            deleteItem.className = 'bubble-menu-item delete';
+            deleteItem.dataset.action = 'delete';
+            deleteItem.innerHTML = '<i class="fas fa-trash"></i> 删除消息';
+            
+            // 添加到气泡菜单（根据情况添加）
+            bubbleMenu.appendChild(importantItem);
+            if (todoItem) {
+                bubbleMenu.appendChild(todoItem);
+            }
+            bubbleMenu.appendChild(deleteItem);
+        }
+
+        // 切换待办状态（用于助手消息的勾选框）
+        function toggleTodoStatus(messageId) {
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (!currentTab) return;
+            
+            const messageIndex = currentTab.messages.findIndex(m => m.id === messageId);
+            if (messageIndex === -1) return;
+            
+            const message = currentTab.messages[messageIndex];
+            
+            if (!message.content.includes('[待办]') && !message.content.includes('[待办完成]')) {
+                return;
+            }
+            
+            if (message.content.includes('[待办完成]')) {
+                message.content = message.content.replace('[待办完成]', '[待办]');
+            } else {
+                message.content = message.content.replace('[待办]', '[待办完成]');
+            }
+            
+            renderMessages();
+            saveToLocalStorage();
+        }
+
+        // 显示气泡菜单
+        function showBubbleMenu(x, y) {
+            const menuWidth = 160;
+            const menuHeight = 200;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            
+            let posX = x;
+            let posY = y;
+            
+            if (posX + menuWidth > windowWidth) {
+                posX = windowWidth - menuWidth - 10;
+            }
+            
+            if (posY + menuHeight > windowHeight) {
+                posY = windowHeight - menuHeight - 10;
+            }
+            
+            bubbleMenu.style.left = posX + 'px';
+            bubbleMenu.style.top = posY + 'px';
+            bubbleMenu.classList.add('show');
+        }
+
+        // 关闭气泡菜单
+        function closeBubbleMenu() {
+            bubbleMenu.classList.remove('show');
+            state.selectedMessage = null;
+        }
+
+        // 处理气泡菜单动作
+        function handleBubbleMenuAction(action) {
+            if (!state.selectedMessage) return;
+            
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (!currentTab) return;
+            
+            const messageIndex = currentTab.messages.findIndex(m => m.id === state.selectedMessage.id);
+            if (messageIndex === -1) return;
+            
+            let newContent = currentTab.messages[messageIndex].content;
+            
+            switch (action) {
+                case 'toggleImportant':
+                    if (newContent.includes('[重要]')) {
+                        newContent = newContent.replace('[重要] ', '');
+                    } else {
+                        newContent = '[重要] ' + newContent;
+                    }
+                    break;
+                    
+                case 'toggleTodo':
+                    // 取消待办（移除待办标记）
+                    if (newContent.includes('[待办]')) {
+                        newContent = newContent.replace('[待办] ', '');
+                    } else if (newContent.includes('[待办完成]')) {
+                        newContent = newContent.replace('[待办完成] ', '');
+                    } else {
+                        newContent = '[待办] ' + newContent;
+                    }
+                    break;
+                    
+                case 'completeTodo':
+                    // 标记完成（从待办转为完成）
+                    if (newContent.includes('[待办]')) {
+                        newContent = newContent.replace('[待办]', '[待办完成]');
+                    }
+                    break;
+                    
+                case 'reopenTodo':
+                    // 重新待办（从完成转为待办）
+                    if (newContent.includes('[待办完成]')) {
+                        newContent = newContent.replace('[待办完成]', '[待办]');
+                    }
+                    break;
+                    
+                case 'delete':
+                    showConfirmDialog('删除消息', '确定要删除这条消息吗？', () => {
+                        currentTab.messages.splice(messageIndex, 1);
+                        renderMessages();
+                        saveToLocalStorage();
+                    });
+                    break;
+            }
+            
+            if (action !== 'delete') {
+                currentTab.messages[messageIndex].content = newContent;
+                renderMessages();
+                saveToLocalStorage();
+            }
+            
+            closeBubbleMenu();
+        }
+
+        // 发送查询给助手
+        function sendQueryToAssistant(type) {
+            closeQuickMenu();
+            
+            let queryText = '';
+            if (type === 'todo') {
+                queryText = '发一下我的待办事项给我。';
+            } else if (type === 'completed') {
+                queryText = '发一下我的完成事项给我。';
+            } else if (type === 'important') {
+                queryText = '发一下我的重要事项给我。';
+            }
+            
+            const now = new Date();
+            const queryMessage = {
+                id: Date.now(),
+                username: state.username,
+                content: queryText,
+                time: now,
+                isSelf: true,
+                formattedTime: formatTime(now)
+            };
+            
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (currentTab) {
+                currentTab.messages.push(queryMessage);
+            }
+            
+            state.messages.push(queryMessage);
+            
+            addMessageToChat(queryMessage);
+            
+            messageInput.value = '';
+            adjustInputHeight();
+            sendBtn.classList.remove('show');
+            
+            emptyState.style.display = 'none';
+            
+            scrollToBottom();
+            
+            saveToLocalStorage();
+            
+            setTimeout(() => {
+                if (type === 'todo') {
+                    generateAssistantTodoTable();
+                } else {
+                    generateAssistantReply(type);
+                }
+            }, 1000);
+        }
+
+        // 生成助手回复（用于完成事项和重要事项）
+        function generateAssistantReply(type) {
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (!currentTab) return;
+            
+            let replyContent = '';
+            const foundItems = [];
+            
+            const assistantMessageId = Date.now() + 1;
+            
+            currentTab.messages.forEach(message => {
+                if (message.isSelf) {
+                    const dateStr = formatDate(message.time);
+                    const contentWithoutTags = message.content.replace(/\[.*?\]/g, '').trim();
+                    
+                    if (type === 'todo' && message.content.includes('[待办]') && !message.content.includes('[待办完成]')) {
+                        foundItems.push({
+                            date: dateStr,
+                            content: contentWithoutTags,
+                            id: message.id,
+                            completed: false
+                        });
+                    } else if (type === 'completed' && message.content.includes('[待办完成]')) {
+                        foundItems.push({
+                            date: dateStr,
+                            content: contentWithoutTags,
+                            id: message.id,
+                            completed: true
+                        });
+                    } else if (type === 'important' && message.content.includes('[重要]')) {
+                        foundItems.push({
+                            date: dateStr,
+                            content: contentWithoutTags,
+                            id: message.id,
+                            important: true
+                        });
+                    }
+                }
+            });
+            
+            if (foundItems.length === 0) {
+                if (type === 'todo') { 
+                    replyContent = '您目前没有待办事项。'; 
+                } else if (type === 'completed') { 
+                    replyContent = '您目前没有已完成的事项。'; 
+                } else if (type === 'important') { 
+                    replyContent = '您目前没有重要事项。'; 
+                }
+            } else { 
+                if (type === 'todo') { 
+                    replyContent = '以下是您的待办事项：<br><br>';
+                    foundItems.forEach((item, index) => {
+                        const mapKey = assistantMessageId + '_' + index;
+                        state.assistantTodoMap[mapKey] = {
+                            originalMessageId: item.id,
+                            todoIndex: index
+                        };
+                        
+                        // 检查是否已经完成
+                        const stateKey = `${item.id}_${index}`;
+                        const isCompleted = state.assistantTodoStates[stateKey] || false;
+                        const checked = isCompleted ? 'checked' : '';
+                        const completedClass = isCompleted ? 'completed' : '';
+                        
+                        replyContent += '<div class="todo-list-item ' + completedClass + '" data-message-id="' + assistantMessageId + '" data-todo-index="' + index + '"><div class="todo-list-header"><span class="todo-list-date">' + item.date + '</span><input type="checkbox" class="todo-list-checkbox" ' + checked + '></div><div class="todo-list-content">' + item.content + '</div></div>';
+                    });
+                } else if (type === 'completed') { 
+                    replyContent = '以下是您已完成的事项：<br><br>';
+                    foundItems.forEach((item, index) => {
+                        replyContent += '<div class="todo-list-item completed"><div class="todo-list-header"><span class="todo-list-date">' + item.date + '</span><span>✓</span></div><div class="todo-list-content">' + item.content + '</div></div>';
+                    });
+                } else if (type === 'important') { 
+                    replyContent = '以下是您的重要事项：<br><br>';
+                    foundItems.forEach((item, index) => {
+                        replyContent += '<div class="todo-list-item"><div class="todo-list-header"><span class="todo-list-date">' + item.date + '</span><span style="color:#e74c3c;">★</span></div><div class="todo-list-content">' + item.content + '</div></div>';
+                    });
+                }
+            }
+            
+            const now = new Date();
+            const assistantReplyMessage = {
+                id: assistantMessageId,
+                username: state.assistantName,
+                content: replyContent,
+                time: now,
+                isSelf: false,
+                formattedTime: formatTime(now)
+            };
+            
+            currentTab.messages.push(assistantReplyMessage);
+            state.messages.push(assistantReplyMessage);
+            
+            addMessageToChat(assistantReplyMessage);
+            saveToLocalStorage();
+        }
+
+        // 生成助手待办表格（新格式）
+        function generateAssistantTodoTable() {
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (!currentTab) return;
+            
+            const foundItems = [];
+            
+            // 查找所有待办事项
+            currentTab.messages.forEach(message => {
+                if (message.isSelf) {
+                    const dateStr = formatDate(message.time);
+                    const contentWithoutTags = message.content.replace(/\[.*?\]/g, '').trim();
+                    
+                    if (message.content.includes('[待办]') && !message.content.includes('[待办完成]')) {
+                        foundItems.push({
+                            date: dateStr,
+                            content: contentWithoutTags,
+                            id: message.id,
+                            completed: false
+                        });
+                    }
+                }
+            });
+            
+            const assistantMessageId = Date.now() + 1;
+            
+            // 生成第一个气泡：提示文本
+            const now = new Date();
+            const assistantReplyMessage = {
+                id: assistantMessageId,
+                username: state.assistantName,
+                content: '以下是您的待办事项：',
+                time: now,
+                isSelf: false,
+                formattedTime: formatTime(now)
+            };
+            
+            currentTab.messages.push(assistantReplyMessage);
+            state.messages.push(assistantReplyMessage);
+            
+            addMessageToChat(assistantReplyMessage);
+            
+            if (foundItems.length === 0) {
+                // 没有待办事项
+                const emptyMessage = {
+                    id: assistantMessageId + 1,
+                    username: state.assistantName,
+                    content: '您目前没有待办事项。',
+                    time: now,
+                    isSelf: false,
+                    formattedTime: formatTime(now)
+                };
+                
+                currentTab.messages.push(emptyMessage);
+                state.messages.push(emptyMessage);
+                
+                addMessageToChat(emptyMessage);
+            } else {
+                // 创建表格容器（不保存到消息记录中）
+                const tableContainer = document.createElement('div');
+                tableContainer.className = 'todo-table-container';
+                
+                // 创建表格
+                const table = document.createElement('table');
+                table.className = 'todo-table';
+                
+                // 创建表头
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                const headers = ['日期', '标记', '内容', '操作'];
+                
+                headers.forEach(headerText => {
+                    const th = document.createElement('th');
+                    th.textContent = headerText;
+                    headerRow.appendChild(th);
+                });
+                
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+                
+                // 创建表格主体
+                const tbody = document.createElement('tbody');
+                
+                foundItems.forEach((item, index) => {
+                    const mapKey = assistantMessageId + '_' + index;
+                    state.assistantTodoMap[mapKey] = {
+                        originalMessageId: item.id,
+                        todoIndex: index
+                    };
+                    
+                    const stateKey = `${item.id}_${index}`;
+                    const isCompleted = state.assistantTodoStates[stateKey] || false;
+                    
+                    const row = document.createElement('tr');
+                    row.dataset.mapKey = mapKey;
+                    if (isCompleted) {
+                        row.classList.add('completed');
+                    }
+                    
+                    // 日期单元格
+                    const dateCell = document.createElement('td');
+                    dateCell.className = 'todo-date';
+                    dateCell.textContent = item.date;
+                    
+                    // 标记单元格
+                    const tagCell = document.createElement('td');
+                    tagCell.className = 'todo-tag';
+                    tagCell.textContent = '[待办]';
+                    
+                    // 内容单元格
+                    const contentCell = document.createElement('td');
+                    contentCell.className = 'todo-content';
+                    contentCell.textContent = item.content;
+                    if (isCompleted) {
+                        contentCell.style.textDecoration = 'line-through';
+                        contentCell.style.color = '#95a5a6';
+                    }
+                    
+                    // 操作单元格（勾选框）
+                    const actionCell = document.createElement('td');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'todo-checkbox';
+                    checkbox.checked = isCompleted;
+                    actionCell.appendChild(checkbox);
+                    
+                    row.appendChild(dateCell);
+                    row.appendChild(tagCell);
+                    row.appendChild(contentCell);
+                    row.appendChild(actionCell);
+                    
+                    tbody.appendChild(row);
+                });
+                
+                table.appendChild(tbody);
+                tableContainer.appendChild(table);
+                
+                // 添加保存按钮
+                const saveButton = document.createElement('button');
+                saveButton.className = 'save-todo-btn';
+                saveButton.textContent = '保存勾选状态';
+                tableContainer.appendChild(saveButton);
+                
+                // 添加到聊天容器中（但不保存到消息记录）
+                chatContainer.appendChild(tableContainer);
+                
+                // 记录表格消息ID，用于刷新时清理
+                state.assistantTodoTableMessages[assistantMessageId] = true;
+            }
+            
+            saveToLocalStorage();
+            scrollToBottom();
+        }
+
+        // 格式化日期
+        function formatDate(date) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = (d.getMonth() + 1).toString().padStart(2, '0');
+            const day = d.getDate().toString().padStart(2, '0');
+            return `${year}/${month}/${day}`;
+        }
+
+        // 显示确认对话框
+        function showConfirmDialog(title, message, callback, noCancel = false) {
+            confirmTitle.textContent = title;
+            confirmMessage.textContent = message;
+            confirmDialog.classList.add('show');
+            menuOverlay.classList.add('show');
+            
+            confirmDialog.dataset.callback = callback ? 'true' : 'false';
+            if (callback) {
+                confirmDialog.callback = callback;
+            }
+            
+            if (noCancel) {
+                cancelConfirmBtn.style.display = 'none';
+                confirmBtn.textContent = '确定';
+            } else {
+                cancelConfirmBtn.style.display = 'block';
+                confirmBtn.textContent = '确认';
+            }
+        }
+
+        // 处理确认操作
+        function handleConfirmAction() {
+            if (confirmDialog.callback) {
+                confirmDialog.callback();
+            }
+            closeConfirmDialog();
+        }
+
+        // 关闭确认对话框
+        function closeConfirmDialog() {
+            confirmDialog.classList.remove('show');
+            menuOverlay.classList.remove('show');
+            confirmDialog.callback = null;
+            cancelConfirmBtn.style.display = 'block';
+            confirmBtn.textContent = '确认';
+        }
+
+        // 更新概率显示
+        function updateProbabilityDisplay() {
+            const probabilityValue = document.getElementById('probabilityValue');
+            if (probabilityValue) {
+                probabilityValue.textContent = state.autoReplyProbability + '%';
+            }
+        }
+
+        // 打开重命名对话框
+        function openRenameDialog(currentName, tabId) {
+            renameInput.value = currentName;
+            renameDialog.dataset.tabId = tabId;
+            renameDialog.classList.add('show');
+            menuOverlay.classList.add('show');
+            setTimeout(() => {
+                renameInput.focus();
+                renameInput.select();
+            }, 100);
+        }
+
+        // 保存重命名
+        function saveRename() {
+            const newName = renameInput.value.trim();
+            const tabId = parseInt(renameDialog.dataset.tabId);
+            
+            if (newName && tabId) {
+                const tabIndex = state.tabs.findIndex(t => t.id === tabId);
+                if (tabIndex !== -1) {
+                    state.tabs[tabIndex].name = newName;
+                    if (state.tabs[tabIndex].id === state.currentTabId) {
+                        currentTabName.textContent = newName;
+                    }
+                    updateTabsList();
+                    saveToLocalStorage();
+                }
+            }
+            closeRenameDialog();
+        }
+
+        // 关闭重命名对话框
+        function closeRenameDialog() {
+            renameDialog.classList.remove('show');
+            menuOverlay.classList.remove('show');
+            delete renameDialog.dataset.tabId;
+        }
+
+        // 打开助手名称对话框
+        function openAssistantDialog() {
+            assistantInput.value = state.assistantName;
+            assistantDialog.classList.add('show');
+            menuOverlay.classList.add('show');
+        }
+
+        // 保存助手名称
+        function saveAssistantName() {
+            const newName = assistantInput.value.trim();
+            if (newName) {
+                const oldName = state.assistantName;
+                state.assistantName = newName;
+                
+                const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+                if (currentTab) {
+                    currentTab.messages.forEach(message => {
+                        if (!message.isSelf && message.username === oldName) {
+                            message.username = newName;
+                        }
+                    });
+                }
+                
+                renderMessages();
+                saveToLocalStorage();
+                closeAssistantDialog();
+                showConfirmDialog('修改成功', '助手名称已修改！', null, true);
+            }
+        }
+
+        // 关闭助手名称对话框
+        function closeAssistantDialog() {
+            assistantDialog.classList.remove('show');
+            menuOverlay.classList.remove('show');
+        }
+
+        // 显示清除缓存确认
+        function showClearCacheConfirm() {
+            showConfirmDialog('清除所有设定', '确定要清除所有用户设定和缓存吗？此操作将重置所有设置并清空缓存数据！', () => {
+                // 清除localStorage
+                localStorage.clear();
+                
+                // 重置状态到初始值
+                state.username = '我';
+                state.assistantName = '助手';
+                state.tabs = [
+                    { id: 1, name: '聊天1', messages: [], active: true, pinned: false },
+                    { id: 2, name: '聊天2', messages: [], active: false, pinned: false },
+                    { id: 3, name: '聊天3', messages: [], active: false, pinned: false }
+                ];
+                state.currentTabId = 1;
+                state.autoReplyProbability = 70;
+                state.autoReplies = [
+                    "收到！已记录。",
+                    "明白，继续说吧。",
+                    "好的，我在听。",
+                    "嗯，有道理。",
+                    "是的，我同意。",
+                    "嗯嗯，了解了。",
+                    "这个想法不错！",
+                    "继续，我在记录。",
+                    "好的，还有什么要补充的吗？",
+                    "已收到，请继续。"
+                ];
+                state.completedTodos = {};
+                state.assistantTodoMap = {};
+                state.assistantTodoStates = {};
+                state.assistantTodoTableMessages = {};
+                state.settings = {
+                    sendKey: 'enter',
+                    theme: 'light',
+                    fontSize: 16
+                };
+                
+                // 更新UI
+                updateCurrentTab();
+                updateTabsList();
+                renderMessages();
+                updateSendKeyDisplay();
+                updateFontSizeDisplay();
+                applyFontSizeToBubbles();
+                
+                // 重置主题到浅色
+                if (state.settings.theme === 'dark') {
+                    toggleTheme();
+                }
+                
+                showConfirmDialog('操作成功', '所有用户设定和缓存已清除！', null, true);
+            });
+        }
+
+// 显示导出选项对话框
+function showExportInfo() {
+    closeSettingsMenu();
+    
+    // 创建自定义导出对话框
+    const exportDialog = document.createElement('div');
+    exportDialog.className = 'confirm-dialog';
+    exportDialog.id = 'exportDialog';
+    exportDialog.style.display = 'block';
+    exportDialog.innerHTML = `
+        <div class="dialog-header">
+            <div class="dialog-title">导出聊天记录</div>
+            <div class="dialog-text">选择导出选项</div>
+        </div>
+        <div style="padding: 20px;">
+            <div class="export-option" style="margin-bottom: 15px;">
+                <input type="radio" id="exportAll" name="exportOption" checked>
+                <label for="exportAll" style="margin-left: 10px; cursor: pointer;">
+                    <strong>导出所有标签</strong><br>
+                    <span style="font-size: 13px; color: #7f8c8d;">包含所有标签的完整聊天记录</span>
+                </label>
+            </div>
+            <div class="export-option">
+                <input type="radio" id="exportCurrent" name="exportOption">
+                <label for="exportCurrent" style="margin-left: 10px; cursor: pointer;">
+                    <strong>仅导出当前标签</strong><br>
+                    <span style="font-size: 13px; color: #7f8c8d;">仅导出"${state.tabs.find(t => t.id === state.currentTabId)?.name || '当前标签'}"</span>
+                </label>
+            </div>
+            <div class="progress-container" id="exportProgress" style="display: none; margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>正在导出...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div style="width: 100%; height: 8px; background-color: #ecf0f1; border-radius: 4px; overflow: hidden;">
+                    <div id="progressBar" style="width: 0%; height: 100%; background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); transition: width 0.3s ease;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="dialog-actions" style="padding: 0 24px 24px;">
+            <button class="dialog-btn cancel" id="cancelExportBtn">取消</button>
+            <button class="dialog-btn save" id="confirmExportBtn">开始导出</button>
+        </div>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(exportDialog);
+    menuOverlay.classList.add('show');
+    
+    // 添加事件监听
+    document.getElementById('cancelExportBtn').addEventListener('click', () => {
+        document.body.removeChild(exportDialog);
+        menuOverlay.classList.remove('show');
+    });
+    
+    document.getElementById('confirmExportBtn').addEventListener('click', () => {
+        const exportAll = document.getElementById('exportAll').checked;
+        startExport(exportAll, exportDialog);
+    });
+}
+
+// 开始导出
+function startExport(exportAll, exportDialog) {
+    const progressContainer = document.getElementById('exportProgress');
+    const progressBar = document.getElementById('progressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    
+    // 显示进度条
+    progressContainer.style.display = 'block';
+    
+    // 禁用按钮
+    document.getElementById('confirmExportBtn').disabled = true;
+    document.getElementById('cancelExportBtn').disabled = true;
+    
+    // 模拟进度更新
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress += 10;
+        progressBar.style.width = progress + '%';
+        progressPercent.textContent = progress + '%';
+        
+        if (progress >= 100) {
+            clearInterval(progressInterval);
+            // 执行实际导出
+            exportToExcel(exportAll, exportDialog);
+        }
+    }, 100);
+}
+
+// 导出为Excel文件（增强版）
+function exportToExcel(exportAll = true, exportDialog = null) {
+    try {
+        // 创建工作簿
+        const wb = XLSX.utils.book_new();
+        
+        // 确定要导出的标签
+        const tabsToExport = exportAll ? state.tabs : [state.tabs.find(t => t.id === state.currentTabId)].filter(Boolean);
+        
+        let totalMessages = 0;
+        tabsToExport.forEach(tab => {
+            if (tab && tab.messages) {
+                totalMessages += tab.messages.length;
+            }
+        });
+        
+        if (totalMessages === 0) {
+            if (exportDialog) {
+                document.body.removeChild(exportDialog);
+                menuOverlay.classList.remove('show');
+            }
+            showConfirmDialog('导出失败', '没有聊天记录可导出！', null, true);
+            return;
+        }
+        
+        // 为每个标签创建一个工作表
+        tabsToExport.forEach((tab, index) => {
+            if (!tab || tab.messages.length === 0) return;
+            
+            // 准备数据行
+            const data = [];
+            
+            // 添加表头（带样式标记）
+            data.push(['用户名', '时间', '内容', '标签', '消息类型', '状态']);
+            
+            // 添加消息数据
+            tab.messages.forEach(message => {
+                const time = new Date(message.time);
+                const formattedTime = time.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }).replace(/\//g, '-');
+                
+                // 清理内容
+                const cleanContent = cleanMessageContent(message.content);
+                
+                // 判断消息类型
+                let messageType = '普通消息';
+                if (message.content.includes('[重要]')) {
+                    messageType = '重要消息';
+                } else if (message.content.includes('[待办]') || message.content.includes('[待办完成]')) {
+                    messageType = '待办事项';
+                }
+                
+                // 判断状态
+                let status = message.isSelf ? '自己发送' : '助手回复';
+                if (message.content.includes('[待办完成]')) {
+                    status = '已完成';
+                } else if (message.content.includes('[待办]')) {
+                    status = '待办中';
+                }
+                
+                data.push([
+                    message.username,
+                    formattedTime,
+                    cleanContent,
+                    tab.name,
+                    messageType,
+                    status
+                ]);
+            });
+            
+            // 创建工作表
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            
+            // 设置列宽
+            const colWidths = [
+                { wch: 12 }, // 用户名
+                { wch: 20 }, // 时间
+                { wch: 60 }, // 内容
+                { wch: 12 }, // 标签
+                { wch: 12 }, // 消息类型
+                { wch: 10 }  // 状态
+            ];
+            ws['!cols'] = colWidths;
+            
+            // 添加工作表到工作簿
+            const sheetName = tab.name
+                .replace(/[\\\/:*?"<>|]/g, '_')
+                .substring(0, 30) || `标签${tab.id}`;
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        });
+        
+        // 生成文件名
+        const now = new Date();
+        const timestamp = now.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        }).replace(/[\/:\s]/g, '').replace(/[年月日时分秒]/g, '');
+        
+        const filename = `${state.username}的聊天记录${timestamp}.xlsx`;
+        
+        // 导出文件
+        XLSX.writeFile(wb, filename);
+        
+        // 清理对话框
+        if (exportDialog) {
+            document.body.removeChild(exportDialog);
+            menuOverlay.classList.remove('show');
+        }
+        
+        // 显示成功提示
+        showConfirmDialog('导出成功', 
+            `✓ 聊天记录导出完成！\n\n` +
+            `文件名：${filename}\n` +
+            `导出标签：${tabsToExport.filter(t => t.messages.length > 0).length}个\n` +
+            `总消息数：${totalMessages}条\n\n` +
+            `文件已保存到您的下载文件夹`, 
+            null, true);
+        
+    } catch (error) {
+        console.error('导出失败:', error);
+        
+        // 清理对话框
+        if (exportDialog) {
+            document.body.removeChild(exportDialog);
+            menuOverlay.classList.remove('show');
+        }
+        
+        showConfirmDialog('导出失败', 
+            `导出过程中出现错误：\n${error.message}\n\n` +
+            `建议：\n` +
+            `1. 确保浏览器允许下载文件\n` +
+            `2. 检查是否有足够的存储空间\n` +
+            `3. 如果问题持续，请尝试刷新页面`, 
+            null, true);
+    }
+}
+
+// 清理消息内容的辅助函数
+function cleanMessageContent(content) {
+    return content
+        .replace(/<br\s*\/?>/gi, '\n')  // 替换换行符
+        .replace(/<[^>]*>/g, '')        // 移除HTML标签
+        // 移除格式标签
+        .replace(/\[b\](.*?)\[\/b\]/g, '$1')
+        .replace(/\[i\](.*?)\[\/i\]/g, '$1')
+        .replace(/\[u\](.*?)\[\/u\]/g, '$1')
+        .replace(/\[s\](.*?)\[\/s\]/g, '$1')
+        // 移除特殊标记
+        .replace(/\[重要\]/g, '')
+        .replace(/\[待办\]/g, '')
+        .replace(/\[待办完成\]/g, '')
+        .replace(/\n{3,}/g, '\n\n')     // 合并多个空行
+        .trim();
+}
+
+function showAboutInfo() {
+    showConfirmDialog('关于', '', null, true);
+    confirmMessage.innerHTML = 'Kwenbin的聊天式记事本<br>版本v1.0.0<br>© 2026<br><br>' +
+        '<a href="help.html" style="color: #3498db; text-decoration: none; display: inline-block; margin-top: 10px; padding: 8px 16px; background: #f0f7ff; border-radius: 20px; font-weight: 600;">' +
+        '<i class="fas fa-question-circle"></i> 查看详细帮助文档</a>';
+    confirmBtn.textContent = '确定';
+}
+
+        // 根据ID查找消息
+        function findMessageById(id) {
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (!currentTab) return null;
+            return currentTab.messages.find(m => m.id === id);
+        }
+
+        // 处理输入变化
+        function handleInputChange() {
+            adjustInputHeight();
+            
+            if (messageInput.value.trim().length > 0) {
+                sendBtn.classList.add('show');
+            } else {
+                sendBtn.classList.remove('show');
+            }
+        }
+
+        // 处理输入框聚焦
+        function handleInputFocus() {
+            messageInput.classList.add('focused');
+        }
+
+        // 处理输入框失焦
+        function handleInputBlur() {
+            messageInput.classList.remove('focused');
+            inputContainer.classList.remove('keyboard-open');
+        }
+
+        // 处理窗口大小变化
+        function handleResize() {
+            if (window.visualViewport) {
+                if (window.visualViewport.height < window.innerHeight * 0.7) {
+                    inputContainer.classList.add('keyboard-open');
+                } else {
+                    inputContainer.classList.remove('keyboard-open');
+                }
+            }
+        }
+
+        // 调整输入框高度
+        function adjustInputHeight() {
+            messageInput.style.height = 'auto';
+            const newHeight = Math.min(messageInput.scrollHeight, 200);
+            messageInput.style.height = newHeight + 'px';
+        }
+
+        // 处理键盘按键 - 修复：根据设置处理Enter键
+        function handleKeyDown(event) {
+            if (window.isComposing) return;
+            
+            // 根据设置判断发送方式
+            if (state.settings.sendKey === 'enter') {
+                // Enter 发送，Shift+Enter 换行
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    sendMessage();
+                }
+                // Shift+Enter 自动换行，无需特殊处理
+            } else {
+                // Shift+Enter 发送，Enter 换行
+                if (event.key === 'Enter' && event.shiftKey) {
+                    event.preventDefault();
+                    sendMessage();
+                }
+                // Enter 自动换行，无需特殊处理
+            }
+        }
+
+// 发送消息
+function sendMessage() {
+    const content = messageInput.value.trim();
+    
+    if (!content) {
+        showConfirmDialog('提示', '请输入内容！', null, true);
+        return;
+    }
+    
+    const now = new Date();
+    const message = {
+        id: Date.now(),
+        username: state.username,
+        content: content,
+        time: now,
+        isSelf: true,
+        formattedTime: formatTime(now)
+    };
+    
+    const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+    if (currentTab) {
+        currentTab.messages.push(message);
+    }
+    
+    state.messages.push(message);
+    
+    addMessageToChat(message);
+    
+    messageInput.value = '';
+    adjustInputHeight();
+    sendBtn.classList.remove('show');
+    
+    emptyState.style.display = 'none';
+    
+    scrollToBottom();
+    
+    saveToLocalStorage();
+    
+    // 精确检查是否是"帮助"二字
+    if (content === '帮助') {
+        setTimeout(() => {
+            generateHelpReply();
+        }, 1000);
+    } else if (Math.random() * 100 < state.autoReplyProbability && state.autoReplies.length > 0) {
+        setTimeout(() => {
+            generateAutoReply(content);
+        }, 1000 + Math.random() * 1000);
+    }
+}
+
+// 生成帮助回复 - 简单版本（修改为当前页面跳转）
+function generateHelpReply() {
+    const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+    if (!currentTab) return;
+    
+    const now = new Date();
+    const helpMessage = {
+        id: Date.now() + 1,
+        username: state.assistantName,
+        content: '📖 点击下方链接查看完整帮助文档：\n\n' +
+                '<div style="text-align: center; margin: 15px 0;">' +
+                '<a href="help.html" style="color: white; text-decoration: none; display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); border-radius: 25px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3); transition: all 0.2s ease; cursor: pointer;" onclick="window.location.href=\'help.html\'">' +
+                '<i class="fas fa-book" style="margin-right: 8px;"></i>打开帮助文档</a>' +
+                '</div>\n\n' +
+                '帮助文档包含：\n' +
+                '• 使用教程\n' +
+                '• 功能说明\n' +
+                '• 常见问题\n' +
+                '• 使用技巧\n\n' +
+                '<div style="font-size: 14px; color: #7f8c8d; margin-top: 10px;">' +
+                '<i class="fas fa-info-circle" style="color: #3498db; margin-right: 5px;"></i>点击后将在当前页面跳转到帮助文档' +
+                '</div>',
+        time: now,
+        isSelf: false,
+        formattedTime: formatTime(now)
+    };
+    
+    currentTab.messages.push(helpMessage);
+    state.messages.push(helpMessage);
+    
+    addMessageToChat(helpMessage);
+    
+    scrollToBottom();
+    saveToLocalStorage();
+}
+
+        // 生成自动回复
+        function generateAutoReply(userMessage) {
+            const randomIndex = Math.floor(Math.random() * state.autoReplies.length);
+            const replyContent = state.autoReplies[randomIndex];
+            
+            const now = new Date();
+            const autoReplyMessage = {
+                id: Date.now() + 1,
+                username: state.assistantName,
+                content: replyContent,
+                time: now,
+                isSelf: false,
+                formattedTime: formatTime(now)
+            };
+            
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (currentTab) {
+                currentTab.messages.push(autoReplyMessage);
+            }
+            
+            state.messages.push(autoReplyMessage);
+            
+            addMessageToChat(autoReplyMessage);
+            
+            scrollToBottom();
+            saveToLocalStorage();
+        }
+
+        // 添加消息到聊天界面
+        function addMessageToChat(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${message.isSelf ? 'self' : 'other'}`;
+            messageDiv.dataset.messageId = message.id;
+            
+            const messageHeader = document.createElement('div');
+            messageHeader.className = 'message-header';
+            
+            const username = document.createElement('span');
+            username.className = 'username';
+            username.textContent = message.username;
+            
+            const messageTime = document.createElement('span');
+            messageTime.className = 'message-time';
+            messageTime.textContent = message.formattedTime;
+            
+            if (message.isSelf) {
+                messageHeader.appendChild(messageTime);
+                messageHeader.appendChild(document.createTextNode(' '));
+                messageHeader.appendChild(username);
+            } else {
+                messageHeader.appendChild(username);
+                messageHeader.appendChild(document.createTextNode(' '));
+                messageHeader.appendChild(messageTime);
+            }
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            
+            // 应用字体大小
+            bubble.style.fontSize = state.settings.fontSize + 'px';
+            
+            if (message.content.includes('[重要]')) {
+                bubble.classList.add('important');
+            }
+            
+            if (message.content.includes('[待办]')) {
+                bubble.classList.add('todo-pending');
+            } else if (message.content.includes('[待办完成]')) {
+                bubble.classList.add('todo-completed');
+            }
+            
+            bubble.innerHTML = formatMessageContent(message.content);
+            
+            messageDiv.appendChild(messageHeader);
+            messageDiv.appendChild(bubble);
+            
+            chatContainer.appendChild(messageDiv);
+        }
+
+        // 格式化消息内容
+        function formatMessageContent(content) {
+            let formatted = content.replace(/\n/g, '<br>');
+            
+            formatted = formatted
+                .replace(/\[b\](.*?)\[\/b\]/g, '<strong>$1</strong>')
+                .replace(/\[i\](.*?)\[\/i\]/g, '<em>$1</em>')
+                .replace(/\[u\](.*?)\[\/u\]/g, '<u>$1</u>')
+                .replace(/\[s\](.*?)\[\/s\]/g, '<s>$1</s>')
+                .replace(/\[重要\] /g, '<span style="color:#e74c3c;font-weight:bold;">[重要] </span>')
+                .replace(/\[待办\] /g, '<span style="color:#2ecc71;font-weight:bold;">[待办] </span>')
+                .replace(/\[待办完成\] /g, '<span style="color:#27ae60;font-weight:bold;">[已完成] </span>');
+            
+            return formatted;
+        }
+
+        // 格式化时间
+        function formatTime(date) {
+            const now = new Date();
+            const messageDate = new Date(date);
+            
+            if (messageDate.toDateString() === now.toDateString()) {
+                return messageDate.toLocaleTimeString('zh-CN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: false
+                });
+            }
+            
+            const month = messageDate.getMonth() + 1;
+            const day = messageDate.getDate();
+            const hours = messageDate.getHours().toString().padStart(2, '0');
+            const minutes = messageDate.getMinutes().toString().padStart(2, '0');
+            
+            return `${month}/${day} ${hours}:${minutes}`;
+        }
+
+        // 渲染所有消息
+        function renderMessages() {
+            chatContainer.innerHTML = '';
+            
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (!currentTab || currentTab.messages.length === 0) {
+                emptyState.style.display = 'flex';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            
+            let lastDate = null;
+            currentTab.messages.forEach((message, index) => {
+                const messageDate = new Date(message.time).toDateString();
+                
+                if (lastDate !== messageDate) {
+                    const timeDivider = document.createElement('div');
+                    timeDivider.className = 'time-divider';
+                    
+                    const timeText = document.createElement('div');
+                    timeText.className = 'time-text';
+                    
+                    const now = new Date();
+                    const today = now.toDateString();
+                    const yesterday = new Date(now.setDate(now.getDate() - 1)).toDateString();
+                    
+                    if (messageDate === today) {
+                        timeText.textContent = '今天';
+                    } else if (messageDate === yesterday) {
+                        timeText.textContent = '昨天';
+                    } else {
+                        const date = new Date(message.time);
+                        timeText.textContent = `${date.getMonth() + 1}/${date.getDate()}`;
+                    }
+                    
+                    timeDivider.appendChild(timeText);
+                    chatContainer.appendChild(timeDivider);
+                    
+                    lastDate = messageDate;
+                }
+                
+                addMessageToChat(message);
+            });
+            
+            scrollToBottom();
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            setTimeout(() => {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, 100);
+        }
+
+        // 插入格式化标签
+        function insertFormatting(startTag, endTag) {
+            const start = messageInput.selectionStart;
+            const end = messageInput.selectionEnd;
+            
+            if (start !== end) {
+                const selectedText = messageInput.value.substring(start, end);
+                messageInput.value = messageInput.value.substring(0, start) + startTag + selectedText + endTag + messageInput.value.substring(end);
+                messageInput.setSelectionRange(start + startTag.length, end + startTag.length);
+            } else {
+                messageInput.value = messageInput.value.substring(0, start) + startTag + endTag + messageInput.value.substring(end);
+                messageInput.setSelectionRange(start + startTag.length, start + startTag.length);
+            }
+            
+            messageInput.focus();
+            handleInputChange();
+        }
+
+        // 插入文本
+        function insertText(text) {
+            const start = messageInput.selectionStart;
+            const end = messageInput.selectionEnd;
+            
+            messageInput.value = messageInput.value.substring(0, start) + text + messageInput.value.substring(end);
+            messageInput.focus();
+            messageInput.setSelectionRange(start + text.length, start + text.length);
+            
+            handleInputChange();
+        }
+
+        // 打开侧滑菜单
+        function openSideMenu() {
+            sideMenu.classList.add('open');
+            menuOverlay.classList.add('show');
+        }
+
+        // 关闭侧滑菜单
+        function closeSideMenu() {
+            sideMenu.classList.remove('open');
+            menuOverlay.classList.remove('show');
+        }
+
+        // 打开设置菜单
+        function openSettingsMenu() {
+            settingsMenu.classList.add('open');
+            menuOverlay.classList.add('show');
+        }
+
+        // 关闭设置菜单
+        function closeSettingsMenu() {
+            settingsMenu.classList.remove('open');
+            menuOverlay.classList.remove('show');
+        }
+
+        // 打开用户名对话框
+        function openUsernameDialog() {
+            usernameInput.value = state.username;
+            usernameDialog.classList.add('show');
+            menuOverlay.classList.add('show');
+        }
+
+        // 关闭用户名对话框
+        function closeUsernameDialog() {
+            usernameDialog.classList.remove('show');
+            menuOverlay.classList.remove('show');
+        }
+
+        // 保存用户名
+        function saveUsername() {
+            const newUsername = usernameInput.value.trim();
+            if (newUsername) {
+                state.username = newUsername;
+                
+                const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+                if (currentTab) {
+                    currentTab.messages.forEach(message => {
+                        if (message.isSelf) {
+                            message.username = newUsername;
+                        }
+                    });
+                }
+                
+                renderMessages();
+                saveToLocalStorage();
+                closeUsernameDialog();
+                showConfirmDialog('修改成功', '用户名已修改！', null, true);
+            }
+        }
+
+        // 更新当前标签
+        function updateCurrentTab() {
+            const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+            if (currentTab) {
+                currentTabName.textContent = currentTab.name;
+                state.messages = [...currentTab.messages];
+            }
+        }
+
+        // 更新标签列表
+        function updateTabsList() {
+            tabsList.innerHTML = '';
+            
+            const sortedTabs = [...state.tabs].sort((a, b) => {
+                if (a.pinned && !b.pinned) return -1;
+                if (!a.pinned && b.pinned) return 1;
+                return a.id - b.id;
+            });
+            
+            sortedTabs.forEach(tab => {
+                const tabItem = document.createElement('div');
+                tabItem.className = `tab-item ${tab.id === state.currentTabId ? 'active' : ''}`;
+                tabItem.dataset.id = tab.id;
+                
+                const tabHeader = document.createElement('div');
+                tabHeader.className = 'tab-item-header';
+                
+                const tabName = document.createElement('div');
+                tabName.className = 'tab-name';
+                tabName.textContent = tab.name;
+                
+                const tabActions = document.createElement('div');
+                tabActions.className = 'tab-actions';
+                
+                // 置顶按钮
+                const pinBtn = document.createElement('button');
+                pinBtn.className = `tab-action-btn pin ${tab.pinned ? 'active' : ''}`;
+                pinBtn.title = tab.pinned ? '取消置顶' : '置顶';
+                pinBtn.innerHTML = tab.pinned ? '<i class="fas fa-thumbtack"></i>' : '<i class="far fa-thumbtack"></i>';
+                pinBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    togglePinTab(tab.id);
+                });
+                
+                // 重命名按钮
+                const renameBtn = document.createElement('button');
+                renameBtn.className = 'tab-action-btn rename';
+                renameBtn.title = '重命名';
+                renameBtn.innerHTML = '<i class="fas fa-edit"></i>';
+                renameBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openRenameDialog(tab.name, tab.id);
+                });
+                
+                // 删除按钮
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'tab-action-btn delete';
+                deleteBtn.title = '删除';
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteTab(tab.id);
+                });
+                
+                tabActions.appendChild(pinBtn);
+                tabActions.appendChild(renameBtn);
+                tabActions.appendChild(deleteBtn);
+                
+                tabHeader.appendChild(tabName);
+                tabHeader.appendChild(tabActions);
+                
+                const tabPreview = document.createElement('div');
+                tabPreview.className = 'tab-preview';
+                
+                if (tab.messages.length > 0) {
+                    const lastMessage = tab.messages[tab.messages.length - 1];
+                    let preview = lastMessage.content.replace(/\[.*?\]/g, '');
+                    if (preview.length > 20) {
+                        preview = preview.substring(0, 20) + '...';
+                    }
+                    tabPreview.textContent = preview;
+                } else {
+                    tabPreview.textContent = '空记录';
+                }
+                
+                tabItem.appendChild(tabHeader);
+                tabItem.appendChild(tabPreview);
+                
+                tabItem.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-item').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    
+                    tabItem.classList.add('active');
+                    
+                    state.currentTabId = tab.id;
+                    updateCurrentTab();
+                    renderMessages();
+                    closeSideMenu();
+                });
+                
+                tabsList.appendChild(tabItem);
+            });
+        }
+
+        // 切换置顶状态
+        function togglePinTab(tabId) {
+            const tabIndex = state.tabs.findIndex(t => t.id === tabId);
+            if (tabIndex !== -1) {
+                state.tabs[tabIndex].pinned = !state.tabs[tabIndex].pinned;
+                updateTabsList();
+                saveToLocalStorage();
+            }
+        }
+
+        // 删除标签
+        function deleteTab(tabId) {
+            if (state.tabs.length <= 1) {
+                showConfirmDialog('无法删除', '至少需要一个聊天标签！', null, true);
+                return;
+            }
+            
+            const tab = state.tabs.find(t => t.id === tabId);
+            if (!tab) return;
+            
+            showConfirmDialog('删除标签', `确定要删除标签"${tab.name}"吗？所有消息将被删除。`, () => {
+                const tabIndex = state.tabs.findIndex(t => t.id === tabId);
+                if (tabIndex !== -1) {
+                    state.tabs.splice(tabIndex, 1);
+                    
+                    if (tabId === state.currentTabId) {
+                        state.currentTabId = state.tabs[0].id;
+                        updateCurrentTab();
+                        renderMessages();
+                    }
+                    
+                    updateTabsList();
+                    saveToLocalStorage();
+                }
+            });
+        }
+
+        // 创建新标签
+        function createNewTab() {
+            const newTabId = Date.now();
+            const newTab = {
+                id: newTabId,
+                name: `聊天 ${state.tabs.length + 1}`,
+                messages: [],
+                active: false,
+                pinned: false
+            };
+            
+            state.tabs.push(newTab);
+            state.currentTabId = newTabId;
+            
+            updateCurrentTab();
+            updateTabsList();
+            renderMessages();
+            
+            closeSideMenu();
+            
+            saveToLocalStorage();
+        }
+
+        // 切换主题
+        function toggleTheme() {
+            if (state.settings.theme === 'light') {
+                state.settings.theme = 'dark';
+                document.body.style.backgroundColor = '#2c3e50';
+                document.body.style.color = '#ffffff';
+                document.querySelector('.top-bar').style.backgroundColor = '#34495e';
+                document.querySelector('.top-bar').style.borderBottomColor = '#2c3e50';
+                document.querySelector('.chat-container').style.backgroundColor = '#2c3e50';
+                document.querySelector('.input-container').style.backgroundColor = '#34495e';
+                document.querySelector('.input-container').style.borderTopColor = '#2c3e50';
+                document.querySelector('.message-input').style.backgroundColor = '#34495e';
+                document.querySelector('.message-input').style.color = '#ffffff';
+                document.querySelector('.input-toolbar').style.borderTopColor = '#2c3e50';
+                document.querySelectorAll('.format-btn').forEach(btn => {
+                    btn.style.backgroundColor = '#2c3e50';
+                    btn.style.color = '#ecf0f1';
+                });
+                
+                showConfirmDialog('主题切换', '已切换为深色主题', null, true);
+            } else {
+                state.settings.theme = 'light';
+                document.body.style.backgroundColor = '#f8f9fa';
+                document.body.style.color = '#2c3e50';
+                document.querySelector('.top-bar').style.backgroundColor = '#ffffff';
+                document.querySelector('.top-bar').style.borderBottomColor = '#eaeaea';
+                document.querySelector('.chat-container').style.backgroundColor = '#f8f9fa';
+                document.querySelector('.input-container').style.backgroundColor = '#ffffff';
+                document.querySelector('.input-container').style.borderTopColor = '#eaeaea';
+                document.querySelector('.message-input').style.backgroundColor = '#ffffff';
+                document.querySelector('.message-input').style.color = '#2c3e50';
+                document.querySelector('.input-toolbar').style.borderTopColor = '#f1f1f1';
+                document.querySelectorAll('.format-btn').forEach(btn => {
+                    btn.style.backgroundColor = '#ecf0f1';
+                    btn.style.color = '#3498db';
+                });
+                
+                showConfirmDialog('主题切换', '已切换为浅色主题', null, true);
+            }
+            
+            saveToLocalStorage();
+        }
+
+        // 保存到本地存储
+        function saveToLocalStorage() {
+            const data = {
+                username: state.username,
+                assistantName: state.assistantName,
+                tabs: state.tabs,
+                currentTabId: state.currentTabId,
+                autoReplyProbability: state.autoReplyProbability,
+                autoReplies: state.autoReplies,
+                completedTodos: state.completedTodos,
+                assistantTodoMap: state.assistantTodoMap,
+                assistantTodoStates: state.assistantTodoStates,
+                settings: state.settings
+            };
+            
+            localStorage.setItem('chatNotepad_mobile', JSON.stringify(data));
+        }
+
+        // 从本地存储加载
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('chatNotepad_mobile');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    
+                    state.username = data.username || '我';
+                    state.assistantName = data.assistantName || '助手';
+                    state.tabs = data.tabs || state.tabs;
+                    state.currentTabId = data.currentTabId || 1;
+                    state.autoReplyProbability = data.autoReplyProbability || 70;
+                    state.autoReplies = data.autoReplies || state.autoReplies;
+                    state.completedTodos = data.completedTodos || {};
+                    state.assistantTodoMap = data.assistantTodoMap || {};
+                    state.assistantTodoStates = data.assistantTodoStates || {};
+                    state.settings = data.settings || state.settings;
+                    
+                    if (state.settings.theme === 'dark') {
+                        document.body.style.backgroundColor = '#2c3e50';
+                        document.body.style.color = '#ffffff';
+                        document.querySelector('.top-bar').style.backgroundColor = '#34495e';
+                        document.querySelector('.top-bar').style.borderBottomColor = '#2c3e50';
+                        document.querySelector('.chat-container').style.backgroundColor = '#2c3e50';
+                        document.querySelector('.input-container').style.backgroundColor = '#34495e';
+                        document.querySelector('.input-container').style.borderTopColor = '#2c3e50';
+                        document.querySelector('.message-input').style.backgroundColor = '#34495e';
+                        document.querySelector('.message-input').style.color = '#ffffff';
+                        document.querySelector('.input-toolbar').style.borderTopColor = '#2c3e50';
+                        document.querySelectorAll('.format-btn').forEach(btn => {
+                            btn.style.backgroundColor = '#2c3e50';
+                            btn.style.color = '#ecf0f1';
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('加载本地存储失败:', error);
+            }
+        }
+    </script>
+</body>
+</html>
