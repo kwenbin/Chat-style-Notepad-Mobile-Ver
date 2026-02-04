@@ -2379,36 +2379,74 @@ function showInstallPrompt() {
         e.preventDefault();
         deferredPrompt = e;
         
-        // 显示自定义安装按钮
-        const installBtn = document.createElement('button');
-        installBtn.innerHTML = '<i class="fas fa-download"></i>';
-        installBtn.className = 'nav-btn';
-        installBtn.title = '安装应用';
-        installBtn.style.marginLeft = '8px';
-        installBtn.id = 'installBtn';
-        
         // 检查是否已经安装
         if (window.matchMedia('(display-mode: standalone)').matches) {
-            installBtn.style.display = 'none';
+            // 如果已经安装，移除按钮（如果存在）
+            const existingBtn = document.getElementById('installBtn');
+            if (existingBtn) {
+                existingBtn.remove();
+            }
+            return;
         }
         
-        // 添加到设置按钮前面
-        const settingsBtn = document.getElementById('settingsBtn');
-        settingsBtn.parentNode.insertBefore(installBtn, settingsBtn);
+        // 检查是否已存在安装按钮
+        let installBtn = document.getElementById('installBtn');
         
-        installBtn.addEventListener('click', async () => {
-            if (!deferredPrompt) return;
+        if (!installBtn) {
+            // 创建安装按钮
+            installBtn = document.createElement('button');
+            installBtn.innerHTML = '<i class="fas fa-download"></i>';
+            installBtn.className = 'nav-btn';
+            installBtn.title = '安装应用';
+            installBtn.style.marginLeft = '8px';
+            installBtn.id = 'installBtn';
             
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            
-            if (outcome === 'accepted') {
-                console.log('用户接受了安装提示');
-                installBtn.style.display = 'none';
+            // 添加到设置按钮前面
+            const settingsBtn = document.getElementById('settingsBtn');
+            if (settingsBtn) {
+                settingsBtn.parentNode.insertBefore(installBtn, settingsBtn);
             }
             
-            deferredPrompt = null;
-        });
+            // 添加点击事件监听器（只添加一次）
+            installBtn.addEventListener('click', async () => {
+                if (!deferredPrompt) return;
+                
+                try {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    
+                    if (outcome === 'accepted') {
+                        console.log('用户接受了安装提示');
+                        // 安装成功后移除按钮
+                        if (installBtn) {
+                            installBtn.style.display = 'none';
+                            installBtn.remove();
+                        }
+                    } else {
+                        console.log('用户取消了安装');
+                        // 用户取消安装，保留按钮但不移除，允许再次尝试
+                        // 重置 deferredPrompt 以便下次使用
+                        deferredPrompt = null;
+                    }
+                } catch (error) {
+                    console.error('安装过程中出错:', error);
+                    deferredPrompt = null;
+                }
+            });
+        } else {
+            // 如果按钮已存在，确保它是可见的
+            installBtn.style.display = 'flex';
+        }
+    });
+    
+    // 添加一个检测安装状态的变化监听器
+    window.addEventListener('appinstalled', () => {
+        console.log('应用已安装');
+        // 移除安装按钮
+        const installBtn = document.getElementById('installBtn');
+        if (installBtn) {
+            installBtn.remove();
+        }
     });
 }
 
