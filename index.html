@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <script>
+// 立即注册 Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js')
+      .then(registration => {
+        console.log('ServiceWorker 注册成功，作用域为: ', registration.scope);
+        // 可以在这里显示“应用已准备好安装”的提示
+      })
+      .catch(err => {
+        console.log('ServiceWorker 注册失败: ', err);
+      });
+  });
+}
+</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>聊天式记事本 - 移动版</title>
