@@ -25,16 +25,28 @@
   "categories": ["productivity", "utilities"],
   "shortcuts": [
     {
-      "name": "新建消息",
-      "short_name": "新建",
-      "description": "快速新建一条消息",
-      "url": "/?new=true"
+      "name": "快速记录",
+      "short_name": "记录",
+      "description": "快速记录一条新消息",
+      "url": "/?action=new"
     },
     {
-      "name": "查看待办",
+      "name": "今日待办",
       "short_name": "待办",
       "description": "查看待办事项",
-      "url": "/?todo=true"
+      "url": "/?action=todo"
+    },
+    {
+      "name": "已完成事项",
+      "short_name": "完成",
+      "description": "查看已完成事项",
+      "url": "/?action=completed"
+    },
+    {
+      "name": "重要事项",
+      "short_name": "重要",
+      "description": "查看重要事项",
+      "url": "/?action=important"
     }
   ]
 }
