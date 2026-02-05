@@ -2,7 +2,7 @@
   "name": "聊天式记事本",
   "short_name": "记事本",
   "description": "移动版聊天式记事本应用",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "display_override": ["window-controls-overlay"],
   "theme_color": "#3498db",
@@ -28,25 +28,25 @@
       "name": "快速记录",
       "short_name": "记录",
       "description": "快速记录一条新消息",
-      "url": "/?action=new"
+      "url": "./?action=new"
     },
     {
       "name": "今日待办",
       "short_name": "待办",
       "description": "查看待办事项",
-      "url": "/?action=todo"
+      "url": "./?action=todo"
     },
     {
       "name": "已完成事项",
       "short_name": "完成",
       "description": "查看已完成事项",
-      "url": "/?action=completed"
+      "url": "./?action=completed"
     },
     {
       "name": "重要事项",
       "short_name": "重要",
       "description": "查看重要事项",
-      "url": "/?action=important"
+      "url": "./?action=important"
     }
   ]
 }
