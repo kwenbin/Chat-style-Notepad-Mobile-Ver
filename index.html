@@ -786,7 +786,7 @@ if ('serviceWorker' in navigator) {
         }
 
         .todo-list-content {
-            margin-left: 24px;
+            margin-left: 6px;
             font-size: 14px;
             color: #2c3e50;
         }
@@ -3160,6 +3160,7 @@ function deleteSelectedMessages() {
                                             originalMessage.content = originalMessage.content.replace('[待办]', '[待办完成]');
                                             // 标记为已完成状态
                                             state.assistantTodoStates[mapKey] = true;
+                                            updateMessageDisplay(originalMessage.id);
                                         }
                                     }
                                 }
@@ -3313,6 +3314,38 @@ function deleteSelectedMessages() {
             bubbleMenu.appendChild(deleteItem);
         }
 
+        // 即时更新单个消息的显示状态
+        function updateMessageDisplay(messageId) {
+        // 找到消息的DOM元素
+        const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+        if (!messageElement) return;
+    
+        const bubble = messageElement.querySelector('.bubble');
+        if (!bubble) return;
+    
+        const currentTab = state.tabs.find(t => t.id === state.currentTabId);
+        if (!currentTab) return;
+    
+        const message = currentTab.messages.find(m => m.id === messageId);
+        if (!message) return;
+    
+        // 更新气泡样式
+        if (message.content.includes('[待办完成]')) {
+            bubble.classList.add('todo-completed');
+            bubble.classList.remove('todo-pending');
+            bubble.style.textDecoration = 'line-through';
+            bubble.style.opacity = '0.8';
+        } else if (message.content.includes('[待办]')) {
+            bubble.classList.add('todo-pending');
+            bubble.classList.remove('todo-completed');
+            bubble.style.textDecoration = 'none';
+            bubble.style.opacity = '1';
+        }
+    
+        // 更新气泡内容（保持格式标记）
+        bubble.innerHTML = formatMessageContent(message.content);
+        }
+        
         // 切换待办状态（用于助手消息的勾选框）
         function toggleTodoStatus(messageId) {
             const currentTab = state.tabs.find(t => t.id === state.currentTabId);
@@ -3332,7 +3365,7 @@ function deleteSelectedMessages() {
             } else {
                 message.content = message.content.replace('[待办]', '[待办完成]');
             }
-            
+            updateMessageDisplay(messageId);
             renderMessages();
             saveToLocalStorage();
         }
@@ -3531,7 +3564,7 @@ function deleteSelectedMessages() {
                 }
             } else { 
                 if (type === 'todo') { 
-                    replyContent = '以下是您的待办事项：<br><br>';
+                    replyContent = '以下是您的待办事项：<br>';
                     foundItems.forEach((item, index) => {
                         const mapKey = assistantMessageId + '_' + index;
                         state.assistantTodoMap[mapKey] = {
@@ -3548,12 +3581,12 @@ function deleteSelectedMessages() {
                         replyContent += '<div class="todo-list-item ' + completedClass + '" data-message-id="' + assistantMessageId + '" data-todo-index="' + index + '"><div class="todo-list-header"><span class="todo-list-date">' + item.date + '</span><input type="checkbox" class="todo-list-checkbox" ' + checked + '></div><div class="todo-list-content">' + item.content + '</div></div>';
                     });
                 } else if (type === 'completed') { 
-                    replyContent = '以下是您已完成的事项：<br><br>';
+                    replyContent = '以下是您已完成的事项：<br>';
                     foundItems.forEach((item, index) => {
                         replyContent += '<div class="todo-list-item completed"><div class="todo-list-header"><span class="todo-list-date">' + item.date + '</span><span>✓</span></div><div class="todo-list-content">' + item.content + '</div></div>';
                     });
                 } else if (type === 'important') { 
-                    replyContent = '以下是您的重要事项：<br><br>';
+                    replyContent = '以下是您的重要事项：<br>';
                     foundItems.forEach((item, index) => {
                         replyContent += '<div class="todo-list-item"><div class="todo-list-header"><span class="todo-list-date">' + item.date + '</span><span style="color:#e74c3c;">★</span></div><div class="todo-list-content">' + item.content + '</div></div>';
                     });
@@ -4425,7 +4458,11 @@ function generateHelpReply() {
                 .replace(/\[重要\] /g, '<span style="color:#e74c3c;font-weight:bold;">[重要] </span>')
                 .replace(/\[待办\] /g, '<span style="color:#2ecc71;font-weight:bold;">[待办] </span>')
                 .replace(/\[待办完成\] /g, '<span style="color:#27ae60;font-weight:bold;">[已完成] </span>');
-            
+          // 如果是已完成状态，添加删除线样式
+         if (content.includes('[待办完成]')) {
+        formatted = formatted.replace(/<span style="color:#27ae60;font-weight:bold;">\[已完成\] <\/span>(.*)/, 
+            '<span style="color:#27ae60;font-weight:bold;">[已完成] </span><span style="text-decoration: line-through; opacity: 0.8;">$1</span>');
+        }            
             return formatted;
         }
 
