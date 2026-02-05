@@ -2369,6 +2369,9 @@
            setTimeout(() => {
                updateStorageStats();
            }, 500);
+
+           // 处理快捷方式参数
+           handleShortcutActions();  
            });
 
 function showInstallPrompt() {
@@ -4841,6 +4844,86 @@ function generateHelpReply() {
                 console.error('加载本地存储失败:', error);
             }
         }
+        
+// 完整的快捷方式处理
+function handleShortcutActions() {
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // 检测各种参数
+    const action = urlParams.get('action');
+    const newParam = urlParams.get('new');
+    const todoParam = urlParams.get('todo');
+    const completedParam = urlParams.get('completed');
+    const importantParam = urlParams.get('important');
+    
+    // 延迟执行，确保页面完全加载
+    setTimeout(() => {
+        // 优先处理 action 参数
+        if (action) {
+            switch(action) {
+                case 'new':
+                    focusOnInput('请输入新消息...');
+                    break;
+                case 'todo':
+                    sendQueryToAssistant('todo');
+                    break;
+                case 'completed':
+                    sendQueryToAssistant('completed');
+                    break;
+                case 'important':
+                    sendQueryToAssistant('important');
+                    break;
+            }
+        }
+        // 兼容旧的参数格式
+        else if (newParam === 'true') {
+            focusOnInput('请输入新消息...');
+        }
+        else if (todoParam === 'true') {
+            sendQueryToAssistant('todo');
+        }
+        else if (completedParam === 'true') {
+            sendQueryToAssistant('completed');
+        }
+        else if (importantParam === 'true') {
+            sendQueryToAssistant('important');
+        }
+    }, 800); // 等待页面完全加载
+    
+    // 清除URL参数
+    clearUrlParams();
+}
+
+// 聚焦到输入框
+function focusOnInput(hintText) {
+    messageInput.focus();
+    
+    // 显示提示
+    if (hintText) {
+        showTemporaryMessage(hintText);
+    }
+    
+    // 添加视觉反馈
+    messageInput.style.boxShadow = '0 0 0 2px rgba(52, 152, 219, 0.5)';
+    setTimeout(() => {
+        messageInput.style.boxShadow = '';
+    }, 1500);
+}
+
+// 清除URL参数
+function clearUrlParams() {
+    if (window.history.replaceState) {
+        // 保存滚动位置
+        const scrollY = window.scrollY;
+        
+        // 替换URL，去掉参数
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+        
+        // 恢复滚动位置
+        window.scrollTo(0, scrollY);
+    }
+}      
     </script>
 </body>
 </html>
