@@ -2012,6 +2012,10 @@ if ('serviceWorker' in navigator) {
                 <span class="option-text">清除所有用户设定和缓存</span>
                 <i class="fas fa-chevron-right option-icon"></i>
             </div>
+            <div class="settings-option" id="searchOption">
+            <span class="option-text">搜索聊天记录</span>
+            <i class="fas fa-chevron-right option-icon"></i>
+            </div>
             <div class="settings-option" id="exportOption">
                 <span class="option-text">导出聊天记录</span>
                 <span style="color:#95a5a6; font-size:14px;">仅Excel格式，其他正在开发中</span>
@@ -2626,11 +2630,17 @@ function showInstallPrompt() {
             // 双击事件
             setupDoubleClickEvents();
 
-// 储存空间管理选项
-document.getElementById('storageOption').addEventListener('click', () => {
-    closeSettingsMenu();
-    openStorageDialog();
-});
+            // 搜索聊天记录
+            document.getElementById('searchOption').addEventListener('click', () => {
+            closeSettingsMenu();
+            window.location.href = 'search.html';
+            });
+            
+            // 储存空间管理选项
+            document.getElementById('storageOption').addEventListener('click', () => {
+            closeSettingsMenu();
+            openStorageDialog();
+            });
 
 // 获取对话框元素并添加事件
 const storageDialog = document.getElementById('storageDialog');
@@ -4908,6 +4918,47 @@ function handleShortcutActions() {
     const completedParam = urlParams.get('completed');
     const importantParam = urlParams.get('important');
     
+    // 检测是否是从搜索页面跳转回来的
+    const searchJumpData = localStorage.getItem('chat_search_jump');
+    if (searchJumpData) {
+        try {
+            const jumpData = JSON.parse(searchJumpData);
+            const now = Date.now();
+            
+            // 检查是否在5秒内的跳转（防止旧的跳转数据）
+            if (now - jumpData.timestamp < 5000) {
+                // 切换到对应的标签
+                const tab = state.tabs.find(t => t.id === jumpData.tabId);
+                if (tab) {
+                    state.currentTabId = jumpData.tabId;
+                    updateCurrentTab();
+                    renderMessages();
+                    
+                    // 滚动到对应的消息
+                    setTimeout(() => {
+                        const messageElement = document.querySelector(`.message[data-message-id="${jumpData.messageId}"]`);
+                        if (messageElement) {
+                            messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            
+                            // 添加高亮效果
+                            messageElement.style.backgroundColor = 'rgba(52, 152, 219, 0.2)';
+                            messageElement.style.borderRadius = '8px';
+                            setTimeout(() => {
+                                messageElement.style.backgroundColor = '';
+                            }, 3000);
+                        }
+                    }, 500);
+                }
+            }
+            
+            // 清除跳转数据
+            localStorage.removeItem('chat_search_jump');
+        } catch (error) {
+            console.error('处理搜索跳转失败:', error);
+            localStorage.removeItem('chat_search_jump');
+        }
+    }
+       
     // 延迟执行，确保页面完全加载
     setTimeout(() => {
         // 优先处理 action 参数
