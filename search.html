@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>搜索聊天记录 - 聊天式记事本</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background-color: #f8f9fa;
+            color: #2c3e50;
+            height: 100vh;
+        }
+
+        /* 顶部导航栏 */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background-color: #ffffff;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            border-bottom: 1px solid #eaeaea;
+            z-index: 100;
+        }
+
+        .nav-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            background: none;
+            font-size: 20px;
+            color: #2c3e50;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            background-color: #f8f9fa;
+        }
+
+        .nav-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            text-align: center;
+            flex: 1;
+            margin: 0 8px;
+        }
+
+        /* 搜索区域 */
+        .search-container {
+            margin-top: 70px;
+            padding: 16px;
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 14px 50px 14px 16px;
+            border: 2px solid #eaeaea;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background-color: #ffffff;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .search-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-50%) scale(1.05);
+        }
+
+        /* 搜索选项 */
+        .search-options {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-option-btn {
+            padding: 8px 16px;
+            border: 2px solid #eaeaea;
+            background-color: #ffffff;
+            color: #2c3e50;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .search-option-btn:hover {
+            border-color: #3498db;
+        }
+
+        .search-option-btn.active {
+            background-color: #3498db;
+            color: #ffffff;
+            border-color: #3498db;
+        }
+
+        /* 搜索结果区域 */
+        .results-container {
+            height: calc(100vh - 200px);
+            overflow-y: auto;
+            padding-bottom: 20px;
+        }
+
+        .result-count {
+            text-align: center;
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 16px;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .result-item {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid #eaeaea;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.2s ease;
+        }
+
+        .result-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-color: #3498db;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .result-tab {
+            font-size: 12px;
+            color: #ffffff;
+            background-color: #3498db;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .result-date {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+
+        .result-user {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+
+        .result-user.self {
+            color: #3498db;
+        }
+
+        .result-user.assistant {
+            color: #2ecc71;
+        }
+
+        .result-content {
+            font-size: 16px;
+            color: #2c3e50;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .result-content .highlight {
+            background-color: #ffeaa7;
+            padding: 1px 2px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+
+        .result-tags {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .result-tag {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .result-tag.important {
+            background-color: #ffeaa7;
+            color: #d35400;
+        }
+
+        .result-tag.todo {
+            background-color: #d5f4e6;
+            color: #27ae60;
+        }
+
+        .result-tag.completed {
+            background-color: #e8f6f3;
+            color: #16a085;
+            text-decoration: line-through;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 60px;
+            color: #bdc3c7;
+            margin-bottom: 20px;
+        }
+
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .empty-text {
+            font-size: 14px;
+            color: #7f8c8d;
+            line-height: 1.5;
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 安全区域适配 */
+        @supports (padding-top: env(safe-area-inset-top)) {
+            .top-bar {
+                padding-top: env(safe-area-inset-top);
+                height: calc(56px + env(safe-area-inset-top));
+            }
+            
+            .search-container {
+                margin-top: calc(70px + env(safe-area-inset-top));
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <div class="top-bar">
+        <button class="nav-btn" id="backBtn" title="返回">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        <div class="nav-title">搜索聊天记录</div>
+    </div>
+
+    <!-- 搜索区域 -->
+    <div class="search-container">
+        <div class="search-box">
+            <input type="text" class="search-input" id="searchInput" placeholder="输入关键词搜索..." autocomplete="off">
+            <button class="search-btn" id="searchBtn">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+
+        <!-- 搜索选项 -->
+        <div class="search-options">
+            <button class="search-option-btn active" data-type="all">全部</button>
+            <button class="search-option-btn" data-type="todo">待办事项</button>
+            <button class="search-option-btn" data-type="completed">已完成</button>
+            <button class="search-option-btn" data-type="important">重要事项</button>
+            <button class="search-option-btn" data-type="self">我的消息</button>
+            <button class="search-option-btn" data-type="assistant">助手回复</button>
+        </div>
+
+        <!-- 加载动画 -->
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <div>搜索中...</div>
+        </div>
+
+        <!-- 搜索结果区域 -->
+        <div class="results-container" id="resultsContainer">
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="empty-title">搜索聊天记录</div>
+                <div class="empty-text">
+                    输入关键词搜索所有标签的聊天记录<br>
+                    支持搜索文本、待办事项、重要标记等
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 状态管理
+        const state = {
+            searchKeyword: '',
+            searchType: 'all',
+            searchResults: [],
+            allChatData: null
+        };
+
+        // DOM元素引用
+        const backBtn = document.getElementById('backBtn');
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const searchOptions = document.querySelectorAll('.search-option-btn');
+        const loading = document.getElementById('loading');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const emptyState = document.getElementById('emptyState');
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 加载聊天数据
+            loadChatData();
+            
+            // 设置事件监听器
+            setupEventListeners();
+            
+            // 自动聚焦到搜索框
+            setTimeout(() => {
+                searchInput.focus();
+            }, 300);
+        });
+
+        // 加载聊天数据
+        function loadChatData() {
+            try {
+                const saved = localStorage.getItem('chatNotepad_mobile');
+                if (saved) {
+                    state.allChatData = JSON.parse(saved);
+                    console.log('聊天数据加载成功，标签数:', state.allChatData.tabs.length);
+                } else {
+                    state.allChatData = { tabs: [] };
+                    console.log('未找到聊天数据');
+                }
+            } catch (error) {
+                console.error('加载聊天数据失败:', error);
+                state.allChatData = { tabs: [] };
+            }
+        }
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 返回按钮
+            backBtn.addEventListener('click', () => {
+                window.history.back();
+            });
+
+            // 搜索按钮
+            searchBtn.addEventListener('click', performSearch);
+
+            // 搜索输入框按Enter键搜索
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+
+            // 搜索选项点击
+            searchOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    // 移除其他选项的active类
+                    searchOptions.forEach(opt => opt.classList.remove('active'));
+                    // 给当前点击的选项添加active类
+                    this.classList.add('active');
+                    
+                    // 更新搜索类型
+                    state.searchType = this.dataset.type;
+                    
+                    // 如果已经有搜索关键词，重新搜索
+                    if (state.searchKeyword.trim()) {
+                        performSearch();
+                    }
+                });
+            });
+        }
+
+        // 执行搜索
+        function performSearch() {
+            const keyword = searchInput.value.trim();
+            
+            if (!keyword) {
+                showEmptyState('请输入搜索关键词');
+                return;
+            }
+            
+            if (!state.allChatData || !state.allChatData.tabs.length) {
+                showEmptyState('未找到聊天记录');
+                return;
+            }
+            
+            state.searchKeyword = keyword;
+            
+            // 显示加载动画
+            loading.classList.add('show');
+            emptyState.style.display = 'none';
+            resultsContainer.innerHTML = '';
+            
+            // 模拟异步搜索（避免阻塞UI）
+            setTimeout(() => {
+                const results = searchChatData(keyword);
+                displaySearchResults(results);
+                loading.classList.remove('show');
+            }, 300);
+        }
+
+        // 搜索聊天数据
+        function searchChatData(keyword) {
+            const results = [];
+            const keywordLower = keyword.toLowerCase();
+            
+            if (!state.allChatData || !state.allChatData.tabs) {
+                return results;
+            }
+            
+            // 遍历所有标签
+            state.allChatData.tabs.forEach(tab => {
+                // 检查标签名称是否匹配
+                if (tab.name.toLowerCase().includes(keywordLower) && state.searchType === 'all') {
+                    results.push({
+                        tab: tab,
+                        message: null, // 标签匹配，不是具体消息
+                        matchType: 'tab'
+                    });
+                }
+                
+                // 遍历标签中的所有消息
+                if (tab.messages && Array.isArray(tab.messages)) {
+                    tab.messages.forEach(message => {
+                        if (shouldIncludeMessage(message, keywordLower)) {
+                            results.push({
+                                tab: tab,
+                                message: message,
+                                matchType: 'content'
+                            });
+                        }
+                    });
+                }
+            });
+            
+            return results;
+        }
+
+        // 判断消息是否应该包含在搜索结果中
+        function shouldIncludeMessage(message, keywordLower) {
+            // 根据搜索类型过滤
+            switch (state.searchType) {
+                case 'todo':
+                    if (!message.content.includes('[待办]') || message.content.includes('[待办完成]')) return false;
+                    break;
+                case 'completed':
+                    if (!message.content.includes('[待办完成]')) return false;
+                    break;
+                case 'important':
+                    if (!message.content.includes('[重要]')) return false;
+                    break;
+                case 'self':
+                    if (!message.isSelf) return false;
+                    break;
+                case 'assistant':
+                    if (message.isSelf) return false;
+                    break;
+            }
+            
+            // 搜索内容匹配
+            const contentLower = message.content.toLowerCase();
+            
+            // 检查消息内容是否包含关键词
+            if (contentLower.includes(keywordLower)) {
+                return true;
+            }
+            
+            // 检查用户名是否包含关键词
+            if (message.username && message.username.toLowerCase().includes(keywordLower)) {
+                return true;
+            }
+            
+            return false;
+        }
+
+        // 显示搜索结果
+        function displaySearchResults(results) {
+            resultsContainer.innerHTML = '';
+            
+            if (results.length === 0) {
+                showEmptyState(`未找到包含"${state.searchKeyword}"的结果`);
+                return;
+            }
+            
+            // 显示结果数量
+            const countElement = document.createElement('div');
+            countElement.className = 'result-count';
+            countElement.textContent = `找到 ${results.length} 条结果`;
+            resultsContainer.appendChild(countElement);
+            
+            // 显示结果列表
+            results.forEach(result => {
+                const resultElement = createResultElement(result);
+                resultsContainer.appendChild(resultElement);
+            });
+        }
+
+        // 创建单个结果元素
+        function createResultElement(result) {
+            const element = document.createElement('div');
+            element.className = 'result-item';
+            
+            // 如果是标签匹配
+            if (result.matchType === 'tab') {
+                element.innerHTML = `
+                    <div class="result-header">
+                        <span class="result-tag" style="background-color: #3498db; color: white;">标签匹配</span>
+                        <span class="result-date">标签</span>
+                    </div>
+                    <div class="result-user" style="color: #2c3e50;">
+                        <i class="fas fa-tag"></i> 标签名称
+                    </div>
+                    <div class="result-content">
+                        ${highlightKeyword(result.tab.name, state.searchKeyword)}
+                    </div>
+                `;
+            } 
+            // 如果是消息匹配
+            else {
+                const message = result.message;
+                const time = new Date(message.time);
+                const formattedDate = time.toLocaleDateString('zh-CN') + ' ' + time.toLocaleTimeString('zh-CN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: false
+                });
+                
+                // 检测消息类型
+                const tags = [];
+                if (message.content.includes('[重要]')) tags.push('important');
+                if (message.content.includes('[待办]') && !message.content.includes('[待办完成]')) tags.push('todo');
+                if (message.content.includes('[待办完成]')) tags.push('completed');
+                
+                // 清理消息内容（移除格式标记）
+                let cleanContent = message.content
+                    .replace(/\[b\](.*?)\[\/b\]/g, '$1')
+                    .replace(/\[i\](.*?)\[\/i\]/g, '$1')
+                    .replace(/\[u\](.*?)\[\/u\]/g, '$1')
+                    .replace(/\[s\](.*?)\[\/s\]/g, '$1')
+                    .replace(/\[重要\]/g, '')
+                    .replace(/\[待办\]/g, '')
+                    .replace(/\[待办完成\]/g, '')
+                    .trim();
+                
+                // 高亮关键词
+                const highlightedContent = highlightKeyword(cleanContent, state.searchKeyword);
+                
+                element.innerHTML = `
+                    <div class="result-header">
+                        <span class="result-tab">${result.tab.name}</span>
+                        <span class="result-date">${formattedDate}</span>
+                    </div>
+                    <div class="result-user ${message.isSelf ? 'self' : 'assistant'}">
+                        ${message.isSelf ? '👤' : '🤖'} ${message.username}
+                    </div>
+                    <div class="result-content">${highlightedContent}</div>
+                    ${tags.length > 0 ? `
+                    <div class="result-tags">
+                        ${tags.map(tag => `
+                            <span class="result-tag ${tag}">
+                                ${tag === 'important' ? '重要' : 
+                                  tag === 'todo' ? '待办' : 
+                                  tag === 'completed' ? '已完成' : ''}
+                            </span>
+                        `).join('')}
+                    </div>
+                    ` : ''}
+                `;
+                
+                // 点击结果跳转回主页面并定位到该消息
+                element.addEventListener('click', () => {
+                    // 存储标签和消息信息到本地，然后跳转回主页面
+                    const jumpData = {
+                        tabId: result.tab.id,
+                        messageId: message.id,
+                        timestamp: Date.now()
+                    };
+                    
+                    localStorage.setItem('chat_search_jump', JSON.stringify(jumpData));
+                    window.location.href = 'index.html';
+                });
+            }
+            
+            return element;
+        }
+
+        // 高亮关键词
+        function highlightKeyword(text, keyword) {
+            if (!keyword || !text) return text;
+            
+            const regex = new RegExp(`(${keyword})`, 'gi');
+            return text.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        // 显示空状态
+        function showEmptyState(message) {
+            emptyState.innerHTML = `
+                <div class="empty-icon">
+                    <i class="fas fa-search"></i>
+                </div>
+                <div class="empty-title">${message}</div>
+                <div class="empty-text">
+                    尝试使用不同的关键词或搜索类型
+                </div>
+            `;
+            emptyState.style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
