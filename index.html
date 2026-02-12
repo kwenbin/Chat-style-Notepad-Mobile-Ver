@@ -2327,13 +2327,13 @@ if ('serviceWorker' in navigator) {
     </div>
     <div style="padding: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <span style="font-size: 16px; color: #2c3e50;">模型：Whisper tiny（中文）</span>
+            <span style="font-size: 16px; color: #2c3e50;">模型：Whisper（中文）</span>
             <span id="modelSizeLabel" style="font-size: 14px; color: #7f8c8d;">约142MB</span>
         </div>
         <div id="modelProgressContainer" style="display: none; margin: 16px 0;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                 <span>下载进度</span>
-                <span id="modelProgressPercent">0%</span>
+                <span id="modelProgressPercent">0.0 MB / 142.0 MB</span>
             </div>
             <div style="width: 100%; height: 8px; background-color: #ecf0f1; border-radius: 4px;">
                 <div id="modelProgressBar" style="width: 0%; height: 100%; background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); border-radius: 4px;"></div>
@@ -5272,23 +5272,50 @@ async function loadVoiceModel(force = false) {
 
     try {
         const progressCallback = (progress) => {
-            let percent = 0;
+            // 初始化变量
+            let percent = voiceState.modelDownloadProgress || 0;
+            let loadedMB = 0, totalMB = 0, displayText = '';
+
+            // ---------- 1. 提取 loaded / total（字节）----------
             if (typeof progress === 'number') {
-                percent = Math.round(progress * 100);
+                // 如果直接传入小数（0~1），无法获得具体大小，采用降级显示
+                if (progress >= 0 && progress <= 1) {
+                    percent = Math.round(progress * 100);
+                    displayText = `${percent}%`;
+                }
             } else if (progress && typeof progress === 'object') {
-                if (typeof progress.progress === 'number') {
+                // 优先使用 progress.progress（0~1）
+                if (typeof progress.progress === 'number' && progress.progress >= 0 && progress.progress <= 1) {
                     percent = Math.round(progress.progress * 100);
-                } else if (typeof progress.loaded === 'number' && typeof progress.total === 'number' && progress.total > 0) {
-                    percent = Math.round((progress.loaded / progress.total) * 100);
+                }
+                // 如果有 loaded / total，提取字节并计算百分比
+                if (typeof progress.loaded === 'number' && typeof progress.total === 'number' && progress.total > 0) {
+                    const ratio = progress.loaded / progress.total;
+                    if (ratio >= 0 && ratio <= 1) {
+                        percent = Math.round(ratio * 100);
+                    }
+                    // 转换为 MB
+                    loadedMB = progress.loaded / (1024 * 1024);
+                    totalMB = progress.total / (1024 * 1024);
+                    displayText = `${loadedMB.toFixed(1)} MB / ${totalMB.toFixed(1)} MB`;
                 }
             }
-            if (isNaN(percent) || !isFinite(percent)) {
-                percent = voiceState.modelDownloadProgress || 0;
+
+            // ---------- 2. 钳位百分比到 0–100 ----------
+            percent = Math.min(100, Math.max(0, percent));
+            voiceState.modelDownloadProgress = percent;
+
+            // ---------- 3. 更新 UI ----------
+            if (bar) bar.style.width = percent + '%';
+            if (percentEl) {
+                // 优先显示 MB 信息，否则显示百分比
+                percentEl.textContent = displayText || (percent + '%');
             }
 
-            voiceState.modelDownloadProgress = percent;
-            if (bar) bar.style.width = percent + '%';
-            if (percentEl) percentEl.textContent = percent + '%';
+            // 可选：同时更新下载详情文本（更直观）
+            if (detailText && loadedMB > 0 && totalMB > 0) {
+                detailText.textContent = `正在下载模型 ${displayText}`;
+            }
         };
 
         voiceState.transcriber = await pipeline('automatic-speech-recognition', voiceState.modelName, {
@@ -5376,44 +5403,97 @@ async function loadVoiceModel(force = false) {
 
         mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
         mediaRecorder.onstop = async () => {
-            // 音频处理与识别（保持原有逻辑，但移除UI控制代码）
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            const audioCtx = new AudioContext({ sampleRate: 16000 });
-            const arrayBuffer = await audioBlob.arrayBuffer();
-            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            const audioData = audioBuffer.getChannelData(0);
-            // 增益 & 高通滤波（保持原样）
-            for (let i = 0; i < audioData.length; i++) audioData[i] = Math.max(-1, Math.min(1, audioData[i] * 2.0));
-            const ctx = new OfflineAudioContext(1, audioData.length, 16000);
-            const src = ctx.createBufferSource();
-            src.buffer = audioBuffer;
-            const filter = ctx.createBiquadFilter();
-            filter.type = 'highpass';
-            filter.frequency.value = 100;
-            src.connect(filter);
-            filter.connect(ctx.destination);
-            src.start();
-            const filteredBuffer = await ctx.startRendering();
-            const filteredData = filteredBuffer.getChannelData(0);
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const audioCtx = new AudioContext({ sampleRate: 16000 });
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const audioData = audioBuffer.getChannelData(0); // Float32Array
 
-            window.showTemporaryMessage('正在识别...');
-            try {
-                const result = await voiceState.transcriber(filteredData, {
-                    language: 'zh',
-                    task: 'transcribe'
-                });
-                if (messageInput) {
-                    messageInput.value = result.text.trim();
-                    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-                window.showTemporaryMessage('语音输入完成');
-            } catch (e) {
-                console.error('识别失败', e);
-                window.showTemporaryMessage('识别失败，请重试');
-            }
-            // 关闭音频流
-            stream.getTracks().forEach(t => t.stop());
-        };
+    // 重采样至 16000 Hz（如果采样率不匹配）
+    const targetSr = 16000;
+    const originalSr = audioBuffer.sampleRate;
+    let resampledData = audioData;
+    if (originalSr !== targetSr) {
+        const offlineCtx = new OfflineAudioContext(1, Math.ceil(audioData.length * targetSr / originalSr), targetSr);
+        const bufferSource = offlineCtx.createBufferSource();
+        bufferSource.buffer = audioBuffer;
+        bufferSource.connect(offlineCtx.destination);
+        bufferSource.start();
+        const renderedBuffer = await offlineCtx.startRendering();
+        resampledData = renderedBuffer.getChannelData(0);
+    }
+
+    // 增益 & 高通滤波（去除低频噪音）
+    for (let i = 0; i < resampledData.length; i++) {
+        resampledData[i] = Math.max(-1, Math.min(1, resampledData[i] * 2.0));
+    }
+    const filterCtx = new OfflineAudioContext(1, resampledData.length, targetSr);
+    const src = filterCtx.createBufferSource();
+    const buffer = audioCtx.createBuffer(1, resampledData.length, targetSr);
+    buffer.copyToChannel(resampledData, 0);
+    src.buffer = buffer;
+    const filter = filterCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 100;
+    src.connect(filter);
+    filter.connect(filterCtx.destination);
+    src.start();
+    const filteredBuffer = await filterCtx.startRendering();
+    const filteredData = filteredBuffer.getChannelData(0);
+
+    // ---------- 核心修改：分段识别（30秒/段）----------
+    const segmentDuration = 30;            // 秒
+    const sampleRate = targetSr;          // 16000
+    const segmentLength = segmentDuration * sampleRate; // 480000 采样点
+    const totalLength = filteredData.length;
+    const segments = Math.ceil(totalLength / segmentLength);
+
+    // 显示分段数（可选）
+    window.showTemporaryMessage(`⏳ 正在识别（共 ${segments} 段）...`);
+
+    let fullText = '';
+    for (let i = 0; i < segments; i++) {
+        const start = i * segmentLength;
+        const end = Math.min(start + segmentLength, totalLength);
+        const segmentData = filteredData.slice(start, end);
+
+        // 可选：提示当前段
+        if (segments > 1) {
+            window.showTemporaryMessage(`识别第 ${i + 1}/${segments} 段...`);
+        }
+
+        try {
+            const result = await voiceState.transcriber(segmentData, {
+                language: 'zh',
+                task: 'transcribe'
+            });
+            fullText += (result.text || '').trim() + ' ';
+        } catch (e) {
+            console.error(`第 ${i + 1} 段识别失败:`, e);
+            fullText += '[识别失败] ';
+        }
+
+        // 小延时，避免 UI 卡死
+        await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // 将识别结果填入输入框（保留原有逻辑，不改变任何转繁/转简行为）
+    if (messageInput) {
+        messageInput.value = fullText.trim();
+        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // 恢复按钮状态
+    if (micBtn) {
+        micBtn.classList.remove('recording');
+        micBtn.querySelector('i').className = 'fas fa-microphone';
+    }
+
+    // 关闭音频流
+    stream.getTracks().forEach(t => t.stop());
+
+    window.showTemporaryMessage('✅ 语音输入完成');
+};
 
         mediaRecorder.start();
         isRecording = true;
