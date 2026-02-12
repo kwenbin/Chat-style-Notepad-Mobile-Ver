@@ -2267,7 +2267,7 @@ if ('serviceWorker' in navigator) {
     <div style="padding: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <span style="font-size: 16px; color: #2c3e50;">模型：Whisper tiny（中文）</span>
-            <span id="modelSizeLabel" style="font-size: 14px; color: #7f8c8d;">约75MB</span>
+            <span id="modelSizeLabel" style="font-size: 14px; color: #7f8c8d;">约142MB</span>
         </div>
         <div id="modelProgressContainer" style="display: none; margin: 16px 0;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
@@ -5360,7 +5360,7 @@ function clearUrlParams() {
 
     // ---------- 对话框控制 ----------
     function openVoiceModelDialog() {
-        modelDetailText && (modelDetailText.textContent = voiceState.modelLoaded ? '模型已缓存，可离线使用。' : '模型未下载，需要约75MB流量。');
+        modelDetailText && (modelDetailText.textContent = voiceState.modelLoaded ? '模型已缓存，可离线使用。' : '模型未下载，需要约142MB流量。');
         downloadModelBtn && (downloadModelBtn.textContent = voiceState.modelLoaded ? '重新下载' : '下载模型');
         deleteModelBtn && (deleteModelBtn.style.display = voiceState.modelLoaded ? 'block' : 'none');
         modelProgressContainer && (modelProgressContainer.style.display = 'none');
@@ -5412,7 +5412,7 @@ function clearUrlParams() {
 
         downloadModelBtn && downloadModelBtn.addEventListener('click', async () => {
             if (!voiceState.modelLoaded) {
-                const ok = await showCustomConfirm('下载模型', '首次下载需要约75MB流量，是否继续？');
+                const ok = await showCustomConfirm('下载模型', '首次下载需要约142MB流量，是否继续？');
                 if (!ok) return;
             }
             await loadVoiceModel(true);
