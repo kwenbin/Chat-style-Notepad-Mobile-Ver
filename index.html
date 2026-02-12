@@ -1,389 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<!-- 语音识别模块（纯本地离线） -->
-<script type="module">
-    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
-
-    // 配置 IndexedDB 缓存
-    env.allowLocalModels = true;
-    env.useBrowserCache = true;
-    env.useFS = true;
-
-    // ---------- 从 window 获取主 state（必须先在主脚本中挂载）----------
-    const mainState = window.state;
-    if (!mainState) {
-        console.error('错误：window.state 不存在，请确保主脚本已执行 window.state = state');
-        throw new Error('语音模块初始化失败');
-    }
-
-    // 初始化语音子状态
-    if (!mainState.voice) mainState.voice = {};
-    const voiceState = mainState.voice;
-    voiceState.modelLoaded = false;
-    voiceState.modelLoading = false;
-    voiceState.modelDownloadProgress = 0;
-    voiceState.transcriber = null;
-    voiceState.modelName = 'Xenova/whisper-tiny';
-    voiceState.modelSize = '75MB';
-
-    // ---------- DOM 元素（直接从 document 获取）----------
-    const micBtn = document.getElementById('micBtn');
-    const modelStatusValue = document.getElementById('modelStatusValue');
-    const voiceModelOption = document.getElementById('voiceModelOption');
-    const voiceModelDialog = document.getElementById('voiceModelDialog');
-    const downloadModelBtn = document.getElementById('downloadModelBtn');
-    const deleteModelBtn = document.getElementById('deleteModelBtn');
-    const closeModelDialogBtn = document.getElementById('closeModelDialogBtn');
-    const modelProgressContainer = document.getElementById('modelProgressContainer');
-    const modelProgressBar = document.getElementById('modelProgressBar');
-    const modelProgressPercent = document.getElementById('modelProgressPercent');
-    const modelDetailText = document.getElementById('modelDetailText');
-    const messageInput = document.getElementById('messageInput');
-    
-    // ---------- 检查本地缓存 ----------
-    async function checkLocalModel() {
-        try {
-            const cached = await env.localModelManager?.getModelInfo(state.voice.modelName);
-            if (cached) {
-                state.voice.modelLoaded = true;
-                micBtn.disabled = false;
-                micBtn.classList.add('active');
-                if (modelStatusValue) modelStatusValue.textContent = '已下载';
-            } else {
-                state.voice.modelLoaded = false;
-                micBtn.disabled = true;
-                micBtn.classList.remove('active');
-                if (modelStatusValue) modelStatusValue.textContent = '未下载';
-            }
-        } catch (e) {
-            console.warn('检查模型缓存失败', e);
-        }
-    }
-
-    // ---------- 检查本地缓存 ----------
-    async function checkLocalModel() {
-        try {
-            const cached = await env.localModelManager?.getModelInfo(voiceState.modelName);
-            if (cached) {
-                voiceState.modelLoaded = true;
-                micBtn.disabled = false;
-                micBtn.classList.add('active');
-                if (modelStatusValue) modelStatusValue.textContent = '已下载';
-            } else {
-                voiceState.modelLoaded = false;
-                micBtn.disabled = true;
-                micBtn.classList.remove('active');
-                if (modelStatusValue) modelStatusValue.textContent = '未下载';
-            }
-        } catch (e) {
-            console.warn('检查模型缓存失败', e);
-        }
-    }
-
-    // ---------- 下载并加载模型 ----------
-    async function loadVoiceModel(force = false) {
-        if (voiceState.modelLoading) return;
-        if (!force && voiceState.modelLoaded) {
-            showTemporaryMessage('模型已就绪');
-            return;
-        }
-
-        voiceState.modelLoading = true;
-        voiceState.modelDownloadProgress = 0;
-
-        modelProgressContainer.style.display = 'block';
-        downloadModelBtn.disabled = true;
-        downloadModelBtn.textContent = '下载中...';
-        modelDetailText.textContent = '正在下载模型（约75MB），请勿关闭页面...';
-
-        try {
-            const progressCallback = (progress) => {
-                const percent = Math.round(progress * 100);
-                voiceState.modelDownloadProgress = percent;
-                modelProgressBar.style.width = percent + '%';
-                modelProgressPercent.textContent = percent + '%';
-            };
-
-            voiceState.transcriber = await pipeline(
-                'automatic-speech-recognition',
-                voiceState.modelName,
-                {
-                    quantized: true,
-                    progress_callback: progressCallback
-                }
-            );
-
-            voiceState.modelLoaded = true;
-            voiceState.modelLoading = false;
-
-            micBtn.disabled = false;
-            micBtn.classList.add('active');
-            if (modelStatusValue) modelStatusValue.textContent = '已下载';
-            modelDetailText.textContent = '模型已就绪，可以离线使用';
-            downloadModelBtn.disabled = false;
-            downloadModelBtn.textContent = '重新下载';
-            deleteModelBtn.style.display = 'block';
-            modelProgressContainer.style.display = 'none';
-
-            showTemporaryMessage('语音模型下载完成！');
-
-        } catch (error) {
-            console.error('模型加载失败:', error);
-            voiceState.modelLoaded = false;
-            voiceState.modelLoading = false;
-            micBtn.disabled = true;
-            micBtn.classList.remove('active');
-            modelStatusValue.textContent = '下载失败';
-            downloadModelBtn.disabled = false;
-            downloadModelBtn.textContent = '重试下载';
-            modelDetailText.textContent = '下载失败，请检查网络后重试。';
-            showTemporaryMessage('模型下载失败: ' + error.message);
-        }
-    }
-    
-  // ---------- 删除本地模型 ----------
-    async function deleteLocalModel() {
-        try {
-            if (env.localModelManager) {
-                await env.localModelManager.deleteModel(voiceState.modelName);
-                voiceState.modelLoaded = false;
-                voiceState.transcriber = null;
-                micBtn.disabled = true;
-                micBtn.classList.remove('active');
-                modelStatusValue.textContent = '未下载';
-                modelDetailText.textContent = '模型已删除，可重新下载。';
-                downloadModelBtn.textContent = '下载模型';
-                deleteModelBtn.style.display = 'none';
-                showTemporaryMessage('模型已删除');
-            }
-        } catch (e) {
-            console.error('删除模型失败', e);
-            showTemporaryMessage('删除失败');
-        }
-    }
-
-    // ---------- 长按录音 ----------
-    let mediaRecorder;
-    let audioChunks = [];
-    let isRecording = false;
-    let pressTimer;
-
-    async function startRecording() {
-        if (!voiceState.modelLoaded || !voiceState.transcriber) {
-            showTemporaryMessage('请先下载语音模型');
-            return;
-        }
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = event => {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const audioCtx = new AudioContext({ sampleRate: 16000 });
-                const arrayBuffer = await audioBlob.arrayBuffer();
-                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                const audioData = audioBuffer.getChannelData(0);
-
-                micBtn.classList.remove('recording');
-                micBtn.querySelector('i').className = 'fas fa-microphone';
-                showTemporaryMessage('正在识别...');
-
-                try {
-                    const result = await voiceState.transcriber(audioData, {
-                        language: 'zh',
-                        task: 'transcribe',
-                    });
-                    messageInput.value = result.text.trim();
-                    
-                    // 触发主脚本的输入变化处理（通过事件模拟）
-                    const event = new Event('input', { bubbles: true });
-                    messageInput.dispatchEvent(event);
-                    showTemporaryMessage('语音输入完成');
-                } catch (e) {
-                    console.error('识别失败', e);
-                    showTemporaryMessage('识别失败，请重试');
-                }
-
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            mediaRecorder.start();
-            isRecording = true;
-            micBtn.classList.add('recording');
-            micBtn.querySelector('i').className = 'fas fa-stop';
-            showTemporaryMessage('录音中...松开结束');
-
-        } catch (e) {
-            console.error('无法获取麦克风', e);
-            showTemporaryMessage('无法访问麦克风');
-        }
-    }
-
-    function stopRecording() {
-        if (mediaRecorder && isRecording) {
-            mediaRecorder.stop();
-            isRecording = false;
-        }
-    }
-
-    function bindMicLongPress() {
-        if (!micBtn) return;
-
-        micBtn.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            if (!voiceState.modelLoaded) {
-                showTemporaryMessage('请先下载语音模型');
-                return;
-            }
-            pressTimer = setTimeout(startRecording, 300);
-        });
-
-        micBtn.addEventListener('mouseup', () => {
-            clearTimeout(pressTimer);
-            if (isRecording) stopRecording();
-        });
-
-        micBtn.addEventListener('mouseleave', () => {
-            clearTimeout(pressTimer);
-            if (isRecording) stopRecording();
-        });
-
-        micBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            if (!voiceState.modelLoaded) {
-                showTemporaryMessage('请先下载语音模型');
-                return;
-            }
-            pressTimer = setTimeout(startRecording, 300);
-        });
-
-        micBtn.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            clearTimeout(pressTimer);
-            if (isRecording) stopRecording();
-        });
-
-        micBtn.addEventListener('touchcancel', (e) => {
-            e.preventDefault();
-            clearTimeout(pressTimer);
-            if (isRecording) stopRecording();
-        });
-    }
-    
-    // ---------- 打开/关闭模型管理对话框 ----------
-    function openVoiceModelDialog() {
-        modelDetailText.textContent = voiceState.modelLoaded
-            ? '模型已缓存，可离线使用。'
-            : '模型未下载，需要约75MB流量。';
-        downloadModelBtn.textContent = voiceState.modelLoaded ? '重新下载' : '下载模型';
-        deleteModelBtn.style.display = voiceState.modelLoaded ? 'block' : 'none';
-        modelProgressContainer.style.display = 'none';
-        voiceModelDialog.classList.add('show');
-        document.getElementById('menuOverlay').classList.add('show');
-    }
-
-    function closeVoiceModelDialog() {
-        voiceModelDialog.classList.remove('show');
-        document.getElementById('menuOverlay').classList.remove('show');
-    }
-
-    // ---------- 自定义确认框（复用全局 confirmDialog）----------
-    function showCustomConfirm(title, message) {
-        return new Promise((resolve) => {
-            const confirmTitle = document.getElementById('confirmTitle');
-            const confirmMessage = document.getElementById('confirmMessage');
-            const confirmDialog = document.getElementById('confirmDialog');
-            const confirmBtn = document.getElementById('confirmBtn');
-            const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
-            const menuOverlay = document.getElementById('menuOverlay');
-
-            confirmTitle.textContent = title;
-            confirmMessage.textContent = message;
-            confirmDialog.classList.add('show');
-            menuOverlay.classList.add('show');
-
-            const onConfirm = () => {
-                confirmBtn.removeEventListener('click', onConfirm);
-                cancelConfirmBtn.removeEventListener('click', onCancel);
-                confirmDialog.classList.remove('show');
-                menuOverlay.classList.remove('show');
-                resolve(true);
-            };
-            const onCancel = () => {
-                confirmBtn.removeEventListener('click', onConfirm);
-                cancelConfirmBtn.removeEventListener('click', onCancel);
-                confirmDialog.classList.remove('show');
-                menuOverlay.classList.remove('show');
-                resolve(false);
-            };
-
-            confirmBtn.addEventListener('click', onConfirm);
-            cancelConfirmBtn.addEventListener('click', onCancel);
-        });
-    }
-    
-    // ---------- 临时提示（纯原生，无冲突）----------
-    function showTemporaryMessage(msg) {
-        const toast = document.createElement('div');
-        toast.textContent = msg;
-        toast.style.position = 'fixed';
-        toast.style.bottom = '100px';
-        toast.style.left = '50%';
-        toast.style.transform = 'translateX(-50%)';
-        toast.style.backgroundColor = 'rgba(0,0,0,0.8)';
-        toast.style.color = 'white';
-        toast.style.padding = '12px 24px';
-        toast.style.borderRadius = '30px';
-        toast.style.zIndex = '9999';
-        toast.style.fontSize = '14px';
-        toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2000);
-    }
-
-    // ---------- 初始化语音模块 ----------
-    async function initVoiceModule() {
-        await checkLocalModel();
-
-        if (voiceModelOption) {
-            voiceModelOption.addEventListener('click', () => {
-                if (typeof closeSettingsMenu === 'function') closeSettingsMenu();
-                openVoiceModelDialog();
-            });
-        }
-
-        if (downloadModelBtn) {
-            downloadModelBtn.addEventListener('click', async () => {
-                if (!voiceState.modelLoaded) {
-                    const ok = await showCustomConfirm('下载模型', '首次下载需要约75MB流量，是否继续？');
-                    if (!ok) return;
-                }
-                await loadVoiceModel(true);
-            });
-        }
-        if (deleteModelBtn) {
-            deleteModelBtn.addEventListener('click', async () => {
-                const ok = await showCustomConfirm('删除模型', '确定要删除已下载的语音模型吗？');
-                if (ok) await deleteLocalModel();
-            });
-        }
-        if (closeModelDialogBtn) {
-            closeModelDialogBtn.addEventListener('click', closeVoiceModelDialog);
-        }
-
-        bindMicLongPress();
-    }
-
-    // 延迟启动，确保主脚本已执行完毕
-    setTimeout(initVoiceModule, 600);
-</script>  
 <script>
 // 立即注册 Service Worker
 if ('serviceWorker' in navigator) {
@@ -2708,8 +2325,9 @@ if ('serviceWorker' in navigator) {
             lastTapTime: 0,
             tapTimeout: null,
             quickMenuOpen: false,
-            voice: {}  
+            voice: {} 
         };
+        window.state = state;
 
         // DOM元素引用
         const chatContainer = document.getElementById('chatContainer');
@@ -5476,5 +5094,305 @@ function clearUrlParams() {
     }
 }      
     </script>
+<!-- 语音模块 - 纯本地离线，需在 state 挂载后执行 -->
+<script type="module">
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+    env.allowLocalModels = true;
+    env.useBrowserCache = true;
+    env.useFS = true;
+
+    // ---------- 等待主 state 准备就绪 ----------
+    function waitForState() {
+        return new Promise(resolve => {
+            if (window.state) return resolve(window.state);
+            const check = setInterval(() => {
+                if (window.state) {
+                    clearInterval(check);
+                    resolve(window.state);
+                }
+            }, 50);
+        });
+    }
+
+    const mainState = await waitForState();
+    if (!mainState.voice) mainState.voice = {};
+    const voiceState = mainState.voice;
+    voiceState.modelLoaded = false;
+    voiceState.modelLoading = false;
+    voiceState.modelDownloadProgress = 0;
+    voiceState.transcriber = null;
+    voiceState.modelName = 'Xenova/whisper-tiny';
+    voiceState.modelSize = '75MB';
+      // ---------- DOM 元素 ----------
+    const getElem = (id) => document.getElementById(id);
+    const micBtn = getElem('micBtn');
+    const modelStatusValue = getElem('modelStatusValue');
+    const voiceModelOption = getElem('voiceModelOption');
+    const voiceModelDialog = getElem('voiceModelDialog');
+    const downloadModelBtn = getElem('downloadModelBtn');
+    const deleteModelBtn = getElem('deleteModelBtn');
+    const closeModelDialogBtn = getElem('closeModelDialogBtn');
+    const modelProgressContainer = getElem('modelProgressContainer');
+    const modelProgressBar = getElem('modelProgressBar');
+    const modelProgressPercent = getElem('modelProgressPercent');
+    const modelDetailText = getElem('modelDetailText');
+    const messageInput = getElem('messageInput');
+    const menuOverlay = getElem('menuOverlay');
+
+    // ---------- 全局提示函数（挂到 window，供主脚本调用）----------
+    window.showTemporaryMessage = function(msg) {
+        const toast = document.createElement('div');
+        toast.textContent = msg;
+        toast.style.position = 'fixed';
+        toast.style.bottom = '100px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.backgroundColor = 'rgba(0,0,0,0.8)';
+        toast.style.color = 'white';
+        toast.style.padding = '12px 24px';
+        toast.style.borderRadius = '30px';
+        toast.style.zIndex = '9999';
+        toast.style.fontSize = '14px';
+        toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    };
+
+        // ---------- 检查缓存 ----------
+    async function checkLocalModel() {
+        try {
+            const cached = await env.localModelManager?.getModelInfo(voiceState.modelName);
+            if (cached) {
+                voiceState.modelLoaded = true;
+                if (micBtn) { micBtn.disabled = false; micBtn.classList.add('active'); }
+                if (modelStatusValue) modelStatusValue.textContent = '已下载';
+            } else {
+                voiceState.modelLoaded = false;
+                if (micBtn) { micBtn.disabled = true; micBtn.classList.remove('active'); }
+                if (modelStatusValue) modelStatusValue.textContent = '未下载';
+            }
+        } catch (e) {
+            console.warn('检查模型缓存失败', e);
+        }
+    }
+
+    // ---------- 下载模型 ----------
+    async function loadVoiceModel(force = false) {
+        if (voiceState.modelLoading) return;
+        if (!force && voiceState.modelLoaded) {
+            window.showTemporaryMessage('模型已就绪');
+            return;
+        }
+
+        voiceState.modelLoading = true;
+        voiceState.modelDownloadProgress = 0;
+
+        if (modelProgressContainer) modelProgressContainer.style.display = 'block';
+        if (downloadModelBtn) { downloadModelBtn.disabled = true; downloadModelBtn.textContent = '下载中...'; }
+        if (modelDetailText) modelDetailText.textContent = '正在下载模型（约75MB），请勿关闭页面...';
+
+        try {
+            const progressCallback = (progress) => {
+                const percent = Math.round(progress * 100);
+                voiceState.modelDownloadProgress = percent;
+                if (modelProgressBar) modelProgressBar.style.width = percent + '%';
+                if (modelProgressPercent) modelProgressPercent.textContent = percent + '%';
+            };
+
+            voiceState.transcriber = await pipeline(
+                'automatic-speech-recognition',
+                voiceState.modelName,
+                { quantized: true, progress_callback: progressCallback }
+            );
+
+            voiceState.modelLoaded = true;
+            voiceState.modelLoading = false;
+
+            if (micBtn) { micBtn.disabled = false; micBtn.classList.add('active'); }
+            if (modelStatusValue) modelStatusValue.textContent = '已下载';
+            if (modelDetailText) modelDetailText.textContent = '模型已就绪，可以离线使用';
+            if (downloadModelBtn) { downloadModelBtn.disabled = false; downloadModelBtn.textContent = '重新下载'; }
+            if (deleteModelBtn) deleteModelBtn.style.display = 'block';
+            if (modelProgressContainer) modelProgressContainer.style.display = 'none';
+
+            window.showTemporaryMessage('语音模型下载完成！');
+        } catch (error) {
+            console.error('模型加载失败:', error);
+            voiceState.modelLoaded = false;
+            voiceState.modelLoading = false;
+            if (micBtn) { micBtn.disabled = true; micBtn.classList.remove('active'); }
+            if (modelStatusValue) modelStatusValue.textContent = '下载失败';
+            if (downloadModelBtn) { downloadModelBtn.disabled = false; downloadModelBtn.textContent = '重试下载'; }
+            if (modelDetailText) modelDetailText.textContent = '下载失败，请检查网络后重试。';
+            window.showTemporaryMessage('模型下载失败: ' + error.message);
+        }
+                }
+
+        // ---------- 删除模型 ----------
+    async function deleteLocalModel() {
+        try {
+            if (env.localModelManager) {
+                await env.localModelManager.deleteModel(voiceState.modelName);
+                voiceState.modelLoaded = false;
+                voiceState.transcriber = null;
+                if (micBtn) { micBtn.disabled = true; micBtn.classList.remove('active'); }
+                if (modelStatusValue) modelStatusValue.textContent = '未下载';
+                if (modelDetailText) modelDetailText.textContent = '模型已删除，可重新下载。';
+                if (downloadModelBtn) downloadModelBtn.textContent = '下载模型';
+                if (deleteModelBtn) deleteModelBtn.style.display = 'none';
+                window.showTemporaryMessage('模型已删除');
+            }
+        } catch (e) {
+            console.error('删除模型失败', e);
+            window.showTemporaryMessage('删除失败');
+        }
+    }
+
+    // ---------- 长按录音 ----------
+    let mediaRecorder, audioChunks = [], isRecording = false, pressTimer;
+
+    async function startRecording() {
+        if (!voiceState.modelLoaded || !voiceState.transcriber) {
+            window.showTemporaryMessage('请先下载语音模型');
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioCtx = new AudioContext({ sampleRate: 16000 });
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                const audioData = audioBuffer.getChannelData(0);
+
+                if (micBtn) { micBtn.classList.remove('recording'); micBtn.querySelector('i').className = 'fas fa-microphone'; }
+                window.showTemporaryMessage('正在识别...');
+
+                try {
+                    const result = await voiceState.transcriber(audioData, { language: 'zh', task: 'transcribe' });
+                    if (messageInput) {
+                        messageInput.value = result.text.trim();
+                        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    window.showTemporaryMessage('语音输入完成');
+                } catch (e) {
+                    console.error('识别失败', e);
+                    window.showTemporaryMessage('识别失败，请重试');
+                }
+                stream.getTracks().forEach(t => t.stop());
+            };
+            mediaRecorder.start();
+            isRecording = true;
+            if (micBtn) { micBtn.classList.add('recording'); micBtn.querySelector('i').className = 'fas fa-stop'; }
+            window.showTemporaryMessage('录音中...松开结束');
+        } catch (e) {
+            console.error('无法获取麦克风', e);
+            window.showTemporaryMessage('无法访问麦克风');
+        }
+    }
+
+    function stopRecording() {
+        if (mediaRecorder && isRecording) { mediaRecorder.stop(); isRecording = false; }
+    }
+
+    function bindMicLongPress() {
+        if (!micBtn) return;
+        const handlers = {
+            start: (e) => {
+                e.preventDefault();
+                if (!voiceState.modelLoaded) { window.showTemporaryMessage('请先下载语音模型'); return; }
+                pressTimer = setTimeout(startRecording, 300);
+            },
+            stop: () => { clearTimeout(pressTimer); if (isRecording) stopRecording(); }
+        };
+        micBtn.addEventListener('mousedown', handlers.start);
+        micBtn.addEventListener('mouseup', handlers.stop);
+        micBtn.addEventListener('mouseleave', handlers.stop);
+        micBtn.addEventListener('touchstart', handlers.start);
+        micBtn.addEventListener('touchend', handlers.stop);
+        micBtn.addEventListener('touchcancel', handlers.stop);
+                    }
+    // ---------- 对话框控制 ----------
+    function openVoiceModelDialog() {
+        if (modelDetailText) modelDetailText.textContent = voiceState.modelLoaded ? '模型已缓存，可离线使用。' : '模型未下载，需要约75MB流量。';
+        if (downloadModelBtn) downloadModelBtn.textContent = voiceState.modelLoaded ? '重新下载' : '下载模型';
+        if (deleteModelBtn) deleteModelBtn.style.display = voiceState.modelLoaded ? 'block' : 'none';
+        if (modelProgressContainer) modelProgressContainer.style.display = 'none';
+        if (voiceModelDialog) voiceModelDialog.classList.add('show');
+        if (menuOverlay) menuOverlay.classList.add('show');
+    }
+    function closeVoiceModelDialog() {
+        if (voiceModelDialog) voiceModelDialog.classList.remove('show');
+        if (menuOverlay) menuOverlay.classList.remove('show');
+    }
+
+    // ---------- 自定义确认框（复用主脚本的 confirmDialog）----------
+    function showCustomConfirm(title, message) {
+        return new Promise((resolve) => {
+            const dlg = document.getElementById('confirmDialog');
+            const titleEl = document.getElementById('confirmTitle');
+            const msgEl = document.getElementById('confirmMessage');
+            const confirmBtn = document.getElementById('confirmBtn');
+            const cancelBtn = document.getElementById('cancelConfirmBtn');
+            const overlay = document.getElementById('menuOverlay');
+            if (!dlg || !titleEl || !msgEl || !confirmBtn || !cancelBtn) { resolve(false); return; }
+            titleEl.textContent = title;
+            msgEl.textContent = message;
+            dlg.classList.add('show');
+            if (overlay) overlay.classList.add('show');
+            const onConfirm = () => {
+                confirmBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+                dlg.classList.remove('show');
+                if (overlay) overlay.classList.remove('show');
+                resolve(true);
+            };
+            const onCancel = () => {
+                confirmBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+                dlg.classList.remove('show');
+                if (overlay) overlay.classList.remove('show');
+                resolve(false);
+            };
+            confirmBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
+        });
+    }
+
+        // ---------- 初始化 ----------
+    async function initVoiceModule() {
+        await checkLocalModel();
+
+        if (voiceModelOption) {
+            voiceModelOption.addEventListener('click', () => {
+                if (typeof window.closeSettingsMenu === 'function') window.closeSettingsMenu();
+                openVoiceModelDialog();
+            });
+        }
+        if (downloadModelBtn) {
+            downloadModelBtn.addEventListener('click', async () => {
+                if (!voiceState.modelLoaded) {
+                    const ok = await showCustomConfirm('下载模型', '首次下载需要约75MB流量，是否继续？');
+                    if (!ok) return;
+                }
+                await loadVoiceModel(true);
+            });
+        }
+        if (deleteModelBtn) {
+            deleteModelBtn.addEventListener('click', async () => {
+                const ok = await showCustomConfirm('删除模型', '确定要删除已下载的语音模型吗？');
+                if (ok) await deleteLocalModel();
+            });
+        }
+        if (closeModelDialogBtn) closeModelDialogBtn.addEventListener('click', closeVoiceModelDialog);
+        bindMicLongPress();
+    }
+
+    setTimeout(initVoiceModule, 300);
+</script>    
 </body>
 </html>
