@@ -5068,8 +5068,10 @@ function focusOnInput(hintText) {
     messageInput.focus();
     
     // 显示提示
-    if (hintText) {
-        showTemporaryMessage(hintText);
+    if (typeof window.showTemporaryMessage === 'function') {
+    window.showTemporaryMessage(hintText);
+} else {
+    console.log(hintText); // 降级
     }
     
     // 添加视觉反馈
