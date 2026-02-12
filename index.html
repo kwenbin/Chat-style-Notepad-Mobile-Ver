@@ -5160,11 +5160,12 @@ function clearUrlParams() {
     </script>
 <!-- 语音模块 - 纯本地离线（短按开始/停止） -->
 <script type="module">
-    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@3.4.0';
 
     env.allowLocalModels = true;
     env.useBrowserCache = true;
-    env.useFS = true;
+    env.useFS = false;
+    env.allowRemoteModels = true;
 
     // 等待主 state 挂载
     function waitForState() {
@@ -5256,16 +5257,38 @@ async function loadVoiceModel(force = false) {
     voiceState.modelLoading = true;
     voiceState.modelDownloadProgress = 0;
 
-    modelProgressContainer && (modelProgressContainer.style.display = 'block');
-    downloadModelBtn && (downloadModelBtn.disabled = true, downloadModelBtn.textContent = '下载中...');
-    modelDetailText && (modelDetailText.textContent = '正在下载模型（约142MB），请勿关闭页面...');
+    const progressContainer = document.getElementById('modelProgressContainer');
+    const downloadBtn = document.getElementById('downloadModelBtn');
+    const detailText = document.getElementById('modelDetailText');
+    const bar = document.getElementById('modelProgressBar');
+    const percentEl = document.getElementById('modelProgressPercent');
+
+    if (progressContainer) progressContainer.style.display = 'block';
+    if (downloadBtn) {
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = '下载中...';
+    }
+    if (detailText) detailText.textContent = '正在下载模型（约142MB），请勿关闭页面...';
 
     try {
-        const progressCallback = p => {
-            const percent = Math.round(p * 100);
+        const progressCallback = (progress) => {
+            let percent = 0;
+            if (typeof progress === 'number') {
+                percent = Math.round(progress * 100);
+            } else if (progress && typeof progress === 'object') {
+                if (typeof progress.progress === 'number') {
+                    percent = Math.round(progress.progress * 100);
+                } else if (typeof progress.loaded === 'number' && typeof progress.total === 'number' && progress.total > 0) {
+                    percent = Math.round((progress.loaded / progress.total) * 100);
+                }
+            }
+            if (isNaN(percent) || !isFinite(percent)) {
+                percent = voiceState.modelDownloadProgress || 0;
+            }
+
             voiceState.modelDownloadProgress = percent;
-            modelProgressBar && (modelProgressBar.style.width = percent + '%');
-            modelProgressPercent && (modelProgressPercent.textContent = percent + '%');
+            if (bar) bar.style.width = percent + '%';
+            if (percentEl) percentEl.textContent = percent + '%';
         };
 
         voiceState.transcriber = await pipeline('automatic-speech-recognition', voiceState.modelName, {
@@ -5276,22 +5299,40 @@ async function loadVoiceModel(force = false) {
         voiceState.modelLoaded = true;
         voiceState.modelLoading = false;
 
-        micBtn && (micBtn.disabled = false, micBtn.classList.add('active'));
-        modelStatusValue && (modelStatusValue.textContent = '已下载');
-        modelDetailText && (modelDetailText.textContent = '模型已就绪，可以离线使用');
-        downloadModelBtn && (downloadModelBtn.disabled = false, downloadModelBtn.textContent = '重新下载');
-        deleteModelBtn && (deleteModelBtn.style.display = 'block');
-        modelProgressContainer && (modelProgressContainer.style.display = 'none');
+        const micBtn = document.getElementById('micBtn');
+        const modelStatus = document.getElementById('modelStatusValue');
+        if (micBtn) {
+            micBtn.disabled = false;
+            micBtn.classList.add('active');
+        }
+        if (modelStatus) modelStatus.textContent = '已下载';
+        if (detailText) detailText.textContent = '模型已就绪，可以离线使用';
+        if (downloadBtn) {
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = '重新下载';
+        }
+        const deleteBtn = document.getElementById('deleteModelBtn');
+        if (deleteBtn) deleteBtn.style.display = 'block';
+        if (progressContainer) progressContainer.style.display = 'none';
 
         window.showTemporaryMessage('语音模型下载完成！');
     } catch (error) {
         console.error('模型加载失败:', error);
         voiceState.modelLoaded = false;
         voiceState.modelLoading = false;
-        micBtn && (micBtn.disabled = true, micBtn.classList.remove('active'));
-        modelStatusValue && (modelStatusValue.textContent = '下载失败');
-        downloadModelBtn && (downloadModelBtn.disabled = false, downloadModelBtn.textContent = '重试下载');
-        modelDetailText && (modelDetailText.textContent = '下载失败，请检查网络后重试。');
+
+        const micBtn = document.getElementById('micBtn');
+        const modelStatus = document.getElementById('modelStatusValue');
+        if (micBtn) {
+            micBtn.disabled = true;
+            micBtn.classList.remove('active');
+        }
+        if (modelStatus) modelStatus.textContent = '下载失败';
+        if (detailText) detailText.textContent = '下载失败，请检查网络后重试。';
+        if (downloadBtn) {
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = '重试下载';
+        }
         window.showTemporaryMessage('模型下载失败: ' + error.message);
     }
 }
@@ -5455,6 +5496,11 @@ function stopRecording() {
         modelProgressContainer && (modelProgressContainer.style.display = 'none');
         voiceModelDialog && voiceModelDialog.classList.add('show');
         menuOverlay && menuOverlay.classList.add('show');
+
+        const bar = document.getElementById('modelProgressBar');
+        const percentEl = document.getElementById('modelProgressPercent');
+        if (bar) bar.style.width = '0%';
+        if (percentEl) percentEl.textContent = '0%';
     }
     function closeVoiceModelDialog() {
         voiceModelDialog && voiceModelDialog.classList.remove('show');
