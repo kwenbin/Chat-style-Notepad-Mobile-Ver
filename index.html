@@ -1952,7 +1952,55 @@ if ('serviceWorker' in navigator) {
 @keyframes slideInDown {
     from { transform: translateY(-100%); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
-}      
+}  
+
+/* 格式主按钮样式 */
+.format-main-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background-color: #3498db;
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.2s ease;
+    margin-right: 4px;
+}
+
+.format-main-btn:hover {
+    background-color: #2980b9;
+    transform: rotate(90deg);
+}
+
+/* 格式按钮容器 - 绝对定位，向上展开 */
+.format-buttons {
+    position: absolute;
+    bottom: 60px;  /* 从工具栏向上弹出 */
+    left: 16px;
+    background-color: #ffffff;
+    border-radius: 30px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    display: flex;
+    gap: 8px;
+    z-index: 200;
+    border: 1px solid #eaeaea;
+    animation: slideInUp 0.2s ease;
+}
+
+/* 深色主题适配 */
+body.dark-theme .format-buttons {
+    background-color: #34495e;
+    border-color: #2c3e50;
+}
+
+.format-buttons .format-btn {
+    margin: 0;  /* 重置原有间距 */
+}     
     </style>
 </head>
 <body>
@@ -1998,27 +2046,21 @@ if ('serviceWorker' in navigator) {
         </div>
         <div class="input-toolbar">
             <div class="toolbar-left">
-                <button class="format-btn" id="boldBtn" title="加粗">
-                    B
-                </button>
-                <button class="format-btn" id="italicBtn" title="斜体">
-                    I
-                </button>
-                <button class="format-btn" id="underlineBtn" title="下划线">
-                    U
-                </button>
-                <button class="format-btn" id="strikeBtn" title="删除线">
-                    S
-                </button>
-                <button class="tag-btn important" id="importantBtn" title="标记重要">
-                    !
-                </button>
-                <button class="tag-btn todo" id="todoBtn" title="标记待办">
-                    ✓
-                </button>
+           <!-- 格式主按钮 -->
+           <button class="format-main-btn" id="formatMainBtn" title="格式">
+          <i class="fas fa-paint-brush"></i> <!-- 或使用 "A" 文字 --></button>
+          <!-- 格式按钮容器（初始隐藏） -->
+          <div class="format-buttons" id="formatButtons" style="display: none;">
+          <button class="format-btn" id="boldBtn" title="加粗">B</button>
+          <button class="format-btn" id="italicBtn" title="斜体">I</button>
+          <button class="format-btn" id="underlineBtn" title="下划线">U</button>
+          <button class="format-btn" id="strikeBtn" title="删除线">S</button>
+          </div>
+                <button class="tag-btn important" id="importantBtn" title="标记重要">!</button>
+                <button class="tag-btn todo" id="todoBtn" title="标记待办">✓</button>
             </div>
 <div class="toolbar-right">
-    <button class="mic-btn" id="micBtn" title="长按语音输入（需要先下载模型）" disabled>
+    <button class="mic-btn" id="micBtn" title="语音识别（需要先下载模型）" disabled>
         <i class="fas fa-microphone"></i>
     </button>
     <button class="send-btn" id="sendBtn">
@@ -2750,6 +2792,31 @@ function showInstallPrompt() {
                     closeQuickMenu();
                 }
             });
+
+            // 格式按钮展开/折叠
+            const formatMainBtn = document.getElementById('formatMainBtn');
+            const formatButtons = document.getElementById('formatButtons');
+
+            if (formatMainBtn && formatButtons) {
+            formatMainBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (formatButtons.style.display === 'none' || !formatButtons.style.display) {
+            formatButtons.style.display = 'flex';
+            // 添加动画类（可选）
+            formatButtons.classList.add('show');
+             } else {
+            formatButtons.style.display = 'none';
+            formatButtons.classList.remove('show');
+             }
+             });
+
+            // 点击其他区域关闭格式菜单
+            document.addEventListener('click', (e) => {
+            if (!formatMainBtn.contains(e.target) && !formatButtons.contains(e.target)) {
+            formatButtons.style.display = 'none';
+                  }
+              });
+            }
             
             // 处理窗口大小变化
             window.addEventListener('resize', handleResize);
