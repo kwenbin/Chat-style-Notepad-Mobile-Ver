@@ -5248,34 +5248,43 @@ function clearUrlParams() {
     }
 
     // ---------- 下载模型 ----------
-    async function loadVoiceModel(force = false) {
-        // 如果模型已经加载进内存，直接返回（无论 force 是否为 true）
-        if (voiceState.transcriber) {
-            window.showTemporaryMessage('模型已就绪');
-            return;
-        }
-    
-        if (voiceState.modelLoading) return;
-        if (!force && voiceState.modelLoaded) {
-            window.showTemporaryMessage('模型已就绪');
-            return;
-        }
+async function loadVoiceModel(force = false) {
+    // 如果已有 transcriber 且 不是强制重新下载，直接返回
+    if (voiceState.transcriber && !force) {
+        window.showTemporaryMessage('模型已就绪');
+        return;
+    }
 
-        voiceState.modelLoading = true;
-        voiceState.modelDownloadProgress = 0;
+    if (voiceState.modelLoading) return;
 
-        const progressContainer = document.getElementById('modelProgressContainer');
-        const downloadBtn = document.getElementById('downloadModelBtn');
-        const detailText = document.getElementById('modelDetailText');
-        const bar = document.getElementById('modelProgressBar');
-        const percentEl = document.getElementById('modelProgressPercent');
+    voiceState.modelLoading = true;
+    voiceState.modelDownloadProgress = 0;
 
-        if (progressContainer) progressContainer.style.display = 'block';
-        if (downloadBtn) {
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = '下载中...';
+    const progressContainer = document.getElementById('modelProgressContainer');
+    const downloadBtn = document.getElementById('downloadModelBtn');
+    const detailText = document.getElementById('modelDetailText');
+    const bar = document.getElementById('modelProgressBar');
+    const percentEl = document.getElementById('modelProgressPercent');
+
+    if (progressContainer) progressContainer.style.display = 'block';
+    if (downloadBtn) {
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = '下载中...';
+    }
+    if (detailText) detailText.textContent = '正在下载模型，请勿关闭页面...';
+
+    // ----- 强制重新下载时，先删除本地缓存 -----
+    if (force && env.localModelManager) {
+        try {
+            await env.localModelManager.deleteModel(voiceState.modelName);
+            console.log('已删除旧模型缓存');
+        } catch (e) {
+            console.warn('删除缓存失败（可能不存在）', e);
         }
-        if (detailText) detailText.textContent = '正在下载模型（约142MB），请勿关闭页面...';
+    }
+
+    // 确保旧的 transcriber 被释放
+    voiceState.transcriber = null;
 
         try {
             const progressCallback = (progress) => {
@@ -5316,8 +5325,8 @@ function clearUrlParams() {
 
             voiceState.transcriber = await pipeline('automatic-speech-recognition', voiceState.modelName, {
                 quantized: true,
+                local_files_only: false, 
                 progress_callback: progressCallback,
-                  // 新增：抗幻觉三件套
                 temperature: 0.6,               // 默认0.2，调高可增加随机性，打破重复循环 [citation:10]
                 repetition_penalty: 1.15,       // 惩罚重复词组，1.0=无惩罚，1.1~1.2效果明显
                 no_repeat_ngram_size: 3         // 禁止连续3个词完全重复
@@ -5343,10 +5352,11 @@ function clearUrlParams() {
             if (progressContainer) progressContainer.style.display = 'none';
 
             window.showTemporaryMessage('语音模型下载完成！');
-        } catch (error) {
+            } catch (error) {
             console.error('模型加载失败:', error);
             voiceState.modelLoaded = false;
             voiceState.modelLoading = false;
+            voiceState.transcriber = null;
 
             const micBtn = document.getElementById('micBtn');
             const modelStatus = document.getElementById('modelStatusValue');
@@ -5361,8 +5371,8 @@ function clearUrlParams() {
                 downloadBtn.textContent = '重试下载';
             }
             window.showTemporaryMessage('模型下载失败: ' + error.message);
-        }
-    }
+            }
+     }
 
     // ---------- 删除模型 ----------
     async function deleteLocalModel() {
@@ -5631,35 +5641,40 @@ function clearUrlParams() {
         });
     }
 
-    // ---------- 初始化 ----------
-    async function initVoiceModule() {
-        await checkLocalModel();
+// ---------- 初始化语音模块（修复自动加载） ----------
+async function initVoiceModule() {
+    // 先更新 UI 状态（用于显示“已下载”/“未下载”）
+    await checkLocalModel();
 
-        // 关键修复：缓存存在且模型未加载时 → 立即强制加载
-        if (voiceState.modelLoaded && !voiceState.transcriber) {
-            window.showTemporaryMessage('⏳ 正在加载语音模型...');
-            // 使用 force = true 绕过 voiceState.modelLoaded 的检查，真正执行 pipeline
-            loadVoiceModel(true).catch(e => console.error('自动加载模型失败', e));
+    // 如果 transcriber 还不存在，尝试从本地缓存加载（不触发下载）
+    if (!voiceState.transcriber) {
+        window.showTemporaryMessage('⏳ 正在检查本地语音模型...');
+        try {
+            // 关键：设置 local_files_only: true，绝不联网下载
+            voiceState.transcriber = await pipeline('automatic-speech-recognition', voiceState.modelName, {
+                quantized: true,
+                local_files_only: true,
+                // 可以保留抗幻觉参数
+                temperature: 0.6,
+                repetition_penalty: 1.15,
+                no_repeat_ngram_size: 3
+            });
+
+            // 加载成功
+            voiceState.modelLoaded = true;
+            voiceState.modelLoading = false;
+            micBtn && (micBtn.disabled = false, micBtn.classList.add('active'));
+            modelStatusValue && (modelStatusValue.textContent = '已下载');
+            console.log('✅ 语音模型已从本地缓存加载');
+        } catch (e) {
+            // 本地不存在，静默失败（不显示错误）
+            console.log('ℹ️ 本地无模型缓存，需要手动下载', e);
+            voiceState.modelLoaded = false;
+            voiceState.transcriber = null;
+            // UI 保持“未下载”状态（已在 checkLocalModel 中设置）
         }
-
-        voiceModelOption && voiceModelOption.addEventListener('click', () => {
-            typeof window.closeSettingsMenu === 'function' && window.closeSettingsMenu();
-            openVoiceModelDialog();
-        });
-
-        downloadModelBtn && downloadModelBtn.addEventListener('click', async () => {
-            await loadVoiceModel(true);
-        });
-
-        deleteModelBtn && deleteModelBtn.addEventListener('click', async () => {
-            const ok = await showCustomConfirm('删除模型', '确定要删除已下载的语音模型吗？');
-            if (ok) await deleteLocalModel();
-        });
-
-        closeModelDialogBtn && closeModelDialogBtn.addEventListener('click', closeVoiceModelDialog);
-
-        bindMicClick();
     }
+}
 
     setTimeout(initVoiceModule, 300);
 </script>
