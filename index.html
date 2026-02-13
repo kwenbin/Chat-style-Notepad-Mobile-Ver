@@ -5249,6 +5249,12 @@ function clearUrlParams() {
 
     // ---------- 下载模型 ----------
     async function loadVoiceModel(force = false) {
+        // 如果模型已经加载进内存，直接返回（无论 force 是否为 true）
+        if (voiceState.transcriber) {
+            window.showTemporaryMessage('模型已就绪');
+            return;
+        }
+    
         if (voiceState.modelLoading) return;
         if (!force && voiceState.modelLoaded) {
             window.showTemporaryMessage('模型已就绪');
@@ -5311,6 +5317,10 @@ function clearUrlParams() {
             voiceState.transcriber = await pipeline('automatic-speech-recognition', voiceState.modelName, {
                 quantized: true,
                 progress_callback: progressCallback
+                  // 新增：抗幻觉三件套
+                temperature: 0.6,               // 默认0.2，调高可增加随机性，打破重复循环 [citation:10]
+                repetition_penalty: 1.15,       // 惩罚重复词组，1.0=无惩罚，1.1~1.2效果明显
+                no_repeat_ngram_size: 3         // 禁止连续3个词完全重复
             });
 
             voiceState.modelLoaded = true;
@@ -5444,6 +5454,7 @@ function clearUrlParams() {
                 window.showTemporaryMessage(`⏳ 正在识别（共 ${segments} 段）...`);
 
                 let fullText = '';
+                let previousPrompt = '';   // 新增：累积上下文
                 try {
                     for (let i = 0; i < segments; i++) {
                         const start = i * segmentLength;
@@ -5457,10 +5468,15 @@ function clearUrlParams() {
                         try {
                             const result = await voiceState.transcriber(segmentData, {
                                 language: 'zh',
-                                task: 'transcribe'
-                                // transformers.js 3.4.0 支持 sampling_rate，但非必须，可不加
+                                task: 'transcribe',
+                                // 关键：把前一段的末尾文本作为 initial_prompt 传进去
+                                initial_prompt: previousPrompt.slice(-200)  // 只取最近200字符，防止过长
                             });
-                            fullText += (result.text || '').trim() + ' ';
+                            const chunkText = (result.text || '').trim();
+                            fullText += chunkText + ' ';
+                            // 更新上下文：取当前段最后约50字作为下一段的提示
+                            previousPrompt = chunkText.slice(-50);
+                          
                         } catch (e) {
                             console.error(`第 ${i + 1} 段识别失败:`, e);
                             fullText += '[识别失败] ';
@@ -5619,9 +5635,11 @@ function clearUrlParams() {
     async function initVoiceModule() {
         await checkLocalModel();
 
-        // 如果模型已下载，自动加载（静默完成）
-        if (voiceState.modelLoaded) {
-            loadVoiceModel(false).catch(e => console.error('自动加载模型失败', e));
+        // 关键修复：缓存存在且模型未加载时 → 立即强制加载
+        if (voiceState.modelLoaded && !voiceState.transcriber) {
+            window.showTemporaryMessage('⏳ 正在加载语音模型...');
+            // 使用 force = true 绕过 voiceState.modelLoaded 的检查，真正执行 pipeline
+            loadVoiceModel(true).catch(e => console.error('自动加载模型失败', e));
         }
 
         voiceModelOption && voiceModelOption.addEventListener('click', () => {
