@@ -2769,27 +2769,34 @@ function showInstallPrompt() {
             openStorageDialog();
             });
 
-// 获取对话框元素并添加事件
-const storageDialog = document.getElementById('storageDialog');
-const cancelStorageBtn = document.getElementById('cancelStorageBtn');
-const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
-const startDate = document.getElementById('startDate');
-const endDate = document.getElementById('endDate');
+            // 获取对话框元素并添加事件
+            const storageDialog = document.getElementById('storageDialog');
+            const cancelStorageBtn = document.getElementById('cancelStorageBtn');
+            const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+            const startDate = document.getElementById('startDate');
+            const endDate = document.getElementById('endDate');
 
-cancelStorageBtn.addEventListener('click', closeStorageDialog);
-deleteSelectedBtn.addEventListener('click', deleteSelectedMessages);
+            cancelStorageBtn.addEventListener('click', closeStorageDialog);
+            deleteSelectedBtn.addEventListener('click', deleteSelectedMessages);
 
-// 快速时间范围按钮
-document.querySelectorAll('.time-range-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        setTimeRange(this.dataset.range);
-    });
-});
+            // 快速时间范围按钮
+            document.querySelectorAll('.time-range-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+            setTimeRange(this.dataset.range);
+               });
+            });
 
-// 日期变化时更新预览
-startDate.addEventListener('change', updatePreview);
-endDate.addEventListener('change', updatePreview);
-}
+            // 日期变化时更新预览
+            startDate.addEventListener('change', updatePreview);
+            endDate.addEventListener('change', updatePreview);
+
+            // 语音模型管理
+            document.getElementById('voiceModelOption').addEventListener('click', () => {
+            closeSettingsMenu();
+            openVoiceModelDialog();
+            });
+          
+            }
 
 // 打开储存空间管理对话框
 function openStorageDialog() {
@@ -5676,7 +5683,25 @@ async function initVoiceModule() {
     }
 }
 
-    setTimeout(initVoiceModule, 300);
+setTimeout(initVoiceModule, 300);
+  // 暴露函数到全局，供普通脚本调用
+window.openVoiceModelDialog = openVoiceModelDialog;
+window.closeVoiceModelDialog = closeVoiceModelDialog;
+window.voiceState = voiceState;
+
+// ========== 绑定按钮事件 ==========
+downloadModelBtn && downloadModelBtn.addEventListener('click', async () => {
+    await loadVoiceModel(true);
+});
+
+deleteModelBtn && deleteModelBtn.addEventListener('click', async () => {
+    const ok = await showCustomConfirm('删除模型', '确定要删除已下载的语音模型吗？');
+    if (ok) await deleteLocalModel();
+});
+
+closeModelDialogBtn && closeModelDialogBtn.addEventListener('click', closeVoiceModelDialog);
+bindMicClick();
+</script>
 </script>
 </body>
 </html>
