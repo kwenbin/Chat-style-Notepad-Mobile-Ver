@@ -5572,7 +5572,7 @@ async function loadVoiceModel(force = false) {
                             }
                             return text;
                           }
-                          let chunkText = (result.text || '').trim();
+
                           chunkText = truncateOnRepetition(chunkText);
                           fullText += chunkText + ' ';
                             // 更新上下文：取当前段最后约50字作为下一段的提示
