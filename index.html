@@ -5316,7 +5316,7 @@ function clearUrlParams() {
 
             voiceState.transcriber = await pipeline('automatic-speech-recognition', voiceState.modelName, {
                 quantized: true,
-                progress_callback: progressCallback
+                progress_callback: progressCallback,
                   // 新增：抗幻觉三件套
                 temperature: 0.6,               // 默认0.2，调高可增加随机性，打破重复循环 [citation:10]
                 repetition_penalty: 1.15,       // 惩罚重复词组，1.0=无惩罚，1.1~1.2效果明显
