@@ -286,7 +286,7 @@ if ('serviceWorker' in navigator) {
         /* 输入区域 - 修改后 */
         .input-container {
             position: fixed;
-            bottom: 0;
+            bottom: 10px;
             left: 0;
             right: 0;
             background-color: #ffffff;
@@ -5535,7 +5535,7 @@ async function loadVoiceModel(force = false) {
                 const totalLength = filteredData.length;
                 const segments = Math.ceil(totalLength / segmentLength);
 
-                window.showTemporaryMessage(`⏳ 正在识别（共 ${segments} 段）...`);
+                window.showTemporaryMessage(`正在识别（共 ${segments} 段）...`);
 
                 let fullText = '';
                 let previousPrompt = '';   // 新增：累积上下文
@@ -5560,7 +5560,7 @@ async function loadVoiceModel(force = false) {
                                 no_repeat_ngram_size: 4,          // 防止4-gram重复
                                max_new_tokens: 448                // 限制最大生成长度（约30秒语音对应token数）
                             });
-                            const chunkText = (result.text || '').trim();
+                            let chunkText = (result.text || '').trim();
                             function truncateOnRepetition(text) {
                             // 如果文本长度超过一定阈值且最后20个字符重复出现，则截断
                             if (text.length > 50) {
@@ -5591,10 +5591,10 @@ async function loadVoiceModel(force = false) {
                         messageInput.value = fullText.trim();
                         messageInput.dispatchEvent(new Event('input', { bubbles: true }));
                     }
-                    window.showTemporaryMessage('✅ 语音输入完成');
+                    window.showTemporaryMessage('语音输入完成');
                 } catch (error) {
                     console.error('识别过程出错:', error);
-                    window.showTemporaryMessage('❌ 识别失败: ' + error.message);
+                    window.showTemporaryMessage('识别失败: ' + error.message);
                 } finally {
                     // 确保释放麦克风并恢复按钮状态
                     stream.getTracks().forEach(t => t.stop());
@@ -5690,7 +5690,7 @@ async function loadVoiceModel(force = false) {
 
         const bar = document.getElementById('modelProgressBar');
         const percentEl = document.getElementById('modelProgressPercent');
-        if (bar) bar.style.width = '0%';
+        if (bar) bar.style.width = '0 MB';
         if (percentEl) percentEl.textContent = '0.0 MB / 142.0 MB';
     }
 
@@ -5756,10 +5756,10 @@ async function initVoiceModule() {
             voiceState.modelLoading = false;
             micBtn && (micBtn.disabled = false, micBtn.classList.add('active'));
             modelStatusValue && (modelStatusValue.textContent = '已下载');
-            console.log('✅ 语音模型已从本地缓存加载');
+            console.log('语音模型已从本地缓存加载');
         } catch (e) {
             // 本地不存在，静默失败（不显示错误）
-            console.log('ℹ️ 本地无模型缓存，需要手动下载', e);
+            console.log('本地无模型缓存，需要手动下载', e);
             voiceState.modelLoaded = false;
             voiceState.transcriber = null;
             // UI 保持“未下载”状态（已在 checkLocalModel 中设置）
